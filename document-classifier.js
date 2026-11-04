@@ -1,27 +1,112 @@
 
 const EXERCISE_TITLE =
-    /^(?:exercise|exerc[ií]cio|exercicio|part|section)\s+\d+/i;
+    /^(?:exerc[ií]cio|exercise|parte|part|sec[cç][aã]o|section|grupo|group)\s+(?:n[.º°]\s*)?\d+\b/i;
 
 const QUESTION_NUMBER =
-    /^(?:question\s*)?\d+\s*[\.\):\-]\s*/i;
+    /^(?:(?:pergunta|quest[aã]o|question|q)\s*)?\d+\s*[\.\):\-]\s*/i;
 
 const SUBQUESTION =
     /^([a-z])\s*[\)\.]\s*/i;
 
-const OPTION_MARKER =
-    /(?:^|\s)([a-z])\s*[\)\.]\s*/gi;
+const OPTION_START =
+    /^([a-h])\s*[\)\.]\s*(.+)$/i;
 
 const DEVELOPMENT_CUES = [
-    "write", "explain", "describe", "discuss", "justify",
-    "calculate", "determine", "give the", "find", "design",
-    "implement", "prove", "escreve", "explique", "descreva",
-    "discuta", "justifique", "calcule", "apresente",
-    "desenvolva", "how much", "how many", "what is",
-    "what are", "how does", "given"
+    "explique", "explica", "explicar",
+    "descreva", "descreve", "descrever",
+    "justifique", "justifica", "justificar",
+    "calcule", "calcula", "calcular",
+    "determine", "determina", "determinar",
+    "apresente", "apresenta", "apresentar",
+    "indique", "indica", "indicar",
+    "identifique", "identifica", "identificar",
+    "analise", "analisa", "analisar",
+    "compare", "compara", "comparar",
+    "desenvolva", "desenvolve",
+    "escreva", "escreve", "escrever",
+    "implemente", "implemente",
+    "construa", "constrói",
+    "demonstre", "demonstra",
+    "resolva", "resolve",
+    "prove", "prova",
+    "calculate", "explain", "describe",
+    "justify", "determine", "identify",
+    "analyse", "analyze", "compare",
+    "discuss", "write", "implement",
+    "design", "develop", "find",
+    "give", "show", "state",
+    "what is", "what are", "how does",
+    "how many", "how much", "why",
+    "which", "define", "evaluate"
 ];
 
-function findOptions(text, line) {
-    const matches = [...text.matchAll(OPTION_MARKER)];
+function normalize(text) {
+    return String(text || "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function startsWithDevelopmentCue(text) {
+    const lower = normalize(text).toLowerCase();
+
+    return DEVELOPMENT_CUES.some(cue =>
+        new RegExp(
+            `(?:^|[^\\p{L}])${cue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|[^\\p{L}])`,
+            "u"
+        ).test(lower)
+    );
+}
+
+function looksLikeQuestion(text) {
+    const value = normalize(text);
+
+    if (!value) return false;
+
+    return (
+        QUESTION_NUMBER.test(value) ||
+        SUBQUESTION.test(value) ||
+        /[?？]\s*$/.test(value) ||
+        startsWithDevelopmentCue(value) ||
+        /^(?:pergunta|quest[aã]o|question)\s*:/i.test(value)
+    );
+}
+
+function getQuestionText(text) {
+    return normalize(text)
+        .replace(QUESTION_NUMBER, "")
+        .replace(/^(?:pergunta|quest[aã]o|question)\s*:\s*/i, "")
+        .replace(SUBQUESTION, "")
+        .trim();
+}
+
+function getOptionArea(line) {
+    const items = line.items || [];
+
+    if (!items.length) return null;
+
+    const left = Math.min(...items.map(item => item.x));
+    const top = Math.min(...items.map(item => item.y));
+
+    const right = Math.max(
+        ...items.map(item => item.x + item.width)
+    );
+
+    const bottom = Math.max(
+        ...items.map(item => item.y + item.height)
+    );
+
+    return {
+        x: Math.max(0, left - 0.006),
+        y: Math.max(0, top - 0.008),
+        width: Math.min(1 - left, right - left + 0.012),
+        height: Math.min(1 - top, bottom - top + 0.016)
+    };
+}
+
+function findInlineOptions(text, line) {
+    const matches = [
+        ...text.matchAll(/(?:^|\s)([a-h])\s*[\)\.]\s*/gi)
+    ];
 
     if (matches.length < 2) return [];
 
@@ -31,113 +116,81 @@ function findOptions(text, line) {
 
         return {
             label: match[1].toUpperCase(),
-            text: text.slice(start, end).trim()
+            text: normalize(text.slice(start, end))
         };
     }).filter(option => option.text);
 
     if (options.length < 2) return [];
 
-    // Só aceitar sequências de letras consecutivas.
-    const labels = options.map(option => option.label);
-
-    for (let i = 1; i < labels.length; i++) {
-        if (labels[i].charCodeAt(0) !== labels[i - 1].charCodeAt(0) + 1) {
+    // Evitar interpretar letras aleatórias como opções.
+    for (let i = 1; i < options.length; i++) {
+        if (
+            options[i].label.charCodeAt(0) !==
+            options[i - 1].label.charCodeAt(0) + 1
+        ) {
             return [];
         }
     }
 
-    // Calcular áreas a partir das posições reais dos itens.
-    const markers = [];
-
-    line.items.forEach((item, index) => {
-        const match = item.text.match(/(?:^|\s)([a-z])\s*[\)\.]/i);
-
-        if (match) {
-            markers.push({
-                label: match[1].toUpperCase(),
-                index
-            });
-        }
-    });
-
-    return options.map(option => {
-        const markerIndex = markers.findIndex(
-            marker => marker.label === option.label
-        );
-
-        if (markerIndex < 0) return option;
-
-        const marker = markers[markerIndex];
-        const next = markers[markerIndex + 1];
-
-        const selectedItems = line.items.slice(
-            marker.index,
-            next?.index ?? line.items.length
-        );
-
-        if (!selectedItems.length) return option;
-
-        const left = Math.min(...selectedItems.map(i => i.x));
-        const top = Math.min(...selectedItems.map(i => i.y));
-        const right = Math.max(
-            ...selectedItems.map(i => i.x + i.width)
-        );
-        const bottom = Math.max(
-            ...selectedItems.map(i => i.y + i.height)
-        );
-
-        return {
-            ...option,
-            area: {
-                x: Math.max(0, left - 0.006),
-                y: Math.max(0, top - 0.008),
-                width: Math.min(1 - left, right - left + 0.012),
-                height: Math.min(1 - top, bottom - top + 0.016)
-            }
-        };
-    });
-}
-
-function looksLikeDevelopment(text) {
-    const lower = text.toLowerCase();
-
-    return text.includes("?") ||
-        DEVELOPMENT_CUES.some(cue => lower.includes(cue));
-}
-
-function looksLikeQuestion(text) {
-    return QUESTION_NUMBER.test(text) ||
-        SUBQUESTION.test(text) ||
-        looksLikeDevelopment(text);
+    return options.map(option => ({
+        ...option,
+        area: getOptionArea(line)
+    }));
 }
 
 export function classifyDocument(documentData) {
     return {
         pageCount: documentData.pageCount,
+
         pages: documentData.pages.map(page => ({
             ...page,
+
             lines: page.lines.map(line => {
-                const text = line.text.trim();
+                const text = normalize(line.text);
+
+                if (!text) {
+                    return { ...line, type: "text" };
+                }
 
                 if (EXERCISE_TITLE.test(text)) {
                     return { ...line, type: "heading" };
                 }
 
-                const options = findOptions(text, line);
+                const inlineOptions = findInlineOptions(text, line);
 
-                if (options.length >= 2) {
+                if (inlineOptions.length >= 2) {
                     return {
                         ...line,
                         type: "multiple_choice",
-                        options
+                        options: inlineOptions
+                    };
+                }
+
+                const option = text.match(OPTION_START);
+
+                if (option) {
+                    return {
+                        ...line,
+                        type: "option",
+                        options: [{
+                            label: option[1].toUpperCase(),
+                            text: normalize(option[2]),
+                            area: getOptionArea(line)
+                        }]
                     };
                 }
 
                 if (looksLikeQuestion(text)) {
-                    return { ...line, type: "question" };
+                    return {
+                        ...line,
+                        type: "question"
+                    };
                 }
 
-                return { ...line, type: "text" };
+                return {
+                    ...line,
+                    type: "text"
+                };
             })
         }))
     };
@@ -145,15 +198,17 @@ export function classifyDocument(documentData) {
 
 export function groupQuestions(classifiedDocument) {
     const questions = [];
-    let exercise = null;
+
+    let exercise = "Ficha de trabalho";
     let currentQuestion = null;
 
     function finishQuestion() {
         if (!currentQuestion) return;
 
-        currentQuestion.text = currentQuestion.text
-            .replace(/\s+/g, " ")
-            .trim();
+        currentQuestion.text = normalize(currentQuestion.text);
+
+        currentQuestion.options =
+            currentQuestion.options || [];
 
         if (currentQuestion.text) {
             questions.push(currentQuestion);
@@ -162,9 +217,51 @@ export function groupQuestions(classifiedDocument) {
         currentQuestion = null;
     }
 
+    function startQuestion(line, page, text) {
+        const sub = text.match(SUBQUESTION);
+        const numbered = QUESTION_NUMBER.test(text);
+
+        currentQuestion = {
+            id: `p${page.pageNumber}-q${questions.length + 1}`,
+            exercise,
+            label: sub
+                ? sub[1].toUpperCase()
+                : null,
+            pageNumber: page.pageNumber,
+            type: "development",
+            text: getQuestionText(text),
+            options: [],
+            lines: [line]
+        };
+
+        if (!numbered && !sub && !looksLikeQuestion(text)) {
+            currentQuestion.text = normalize(text);
+        }
+    }
+
+    function addOptions(options) {
+        if (!currentQuestion) return;
+
+        for (const option of options || []) {
+            const exists = currentQuestion.options.some(
+                existing => existing.label === option.label
+            );
+
+            if (!exists) {
+                currentQuestion.options.push(option);
+            }
+        }
+
+        if (currentQuestion.options.length >= 2) {
+            currentQuestion.type = "multiple_choice";
+        }
+    }
+
     for (const page of classifiedDocument.pages) {
         for (const line of page.lines) {
-            const text = line.text.trim();
+            const text = normalize(line.text);
+
+            if (!text) continue;
 
             if (line.type === "heading") {
                 finishQuestion();
@@ -172,64 +269,54 @@ export function groupQuestions(classifiedDocument) {
                 continue;
             }
 
-            if (!exercise) continue;
-            if (!text) continue;
+            // As opções podem aparecer em linhas diferentes.
+            if (line.type === "option") {
+                if (!currentQuestion) continue;
 
-            const sub = text.match(SUBQUESTION);
-            const numbered = QUESTION_NUMBER.test(text);
+                addOptions(line.options);
+                currentQuestion.lines.push(line);
+                continue;
+            }
 
             if (line.type === "multiple_choice") {
                 if (!currentQuestion) {
-                    currentQuestion = {
-                        exercise,
-                        label: null,
-                        pageNumber: page.pageNumber,
-                        type: "multiple_choice",
-                        text,
-                        options: line.options,
-                        lines: [line]
-                    };
+                    startQuestion(line, page, text);
                 } else {
-                    currentQuestion.type = "multiple_choice";
-                    currentQuestion.options = line.options;
                     currentQuestion.lines.push(line);
                 }
+
+                addOptions(line.options);
                 continue;
             }
 
-            if (sub || numbered || !currentQuestion) {
+            const numbered = QUESTION_NUMBER.test(text);
+            const sub = SUBQUESTION.test(text);
+
+            if (line.type === "question" || numbered || sub) {
                 finishQuestion();
-
-                currentQuestion = {
-                    id: `p${page.pageNumber}-q${questions.length + 1}`,
-                    exercise,
-                    label: sub ? sub[1].toUpperCase() : null,
-                    pageNumber: page.pageNumber,
-                    type: "development",
-                    text: text.replace(SUBQUESTION, "").trim(),
-                    options: [],
-                    lines: [line]
-                };
-
+                startQuestion(line, page, text);
                 continue;
             }
 
-            // Continuação do enunciado anterior.
-            currentQuestion.text += " " + text;
-            currentQuestion.lines.push(line);
+            // Texto que continua o enunciado anterior.
+            if (currentQuestion) {
+                currentQuestion.text += " " + text;
+                currentQuestion.lines.push(line);
+            }
         }
     }
 
     finishQuestion();
 
-    // Garantir que perguntas com opções são classificadas corretamente.
     questions.forEach((question, index) => {
-        if (question.options?.length >= 2) {
+        question.id ||= `q-${index + 1}`;
+
+        if (question.options.length >= 2) {
             question.type = "multiple_choice";
         }
-
-        question.id ||= `q-${index + 1}`;
     });
+
+    console.log("Classificação final:", questions);
 
     return questions;
 }
