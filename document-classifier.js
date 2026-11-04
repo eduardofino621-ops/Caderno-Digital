@@ -3,13 +3,13 @@ const EXERCISE_TITLE =
     /^(?:exerc[ií]cio|exercise|parte|part|sec[cç][aã]o|section|grupo|group)\s+(?:n[.º°]\s*)?\d+\b/i;
 
 const QUESTION_NUMBER =
-    /^(?:(?:pergunta|quest[aã]o|question|q)\s*)?\d+\s*[\.\):\-]\s*/i;
+    /^(?:(?:pergunta|quest[aã]o|question|q)\s*)?\d+(?:\.\d+)*\s*[\.\):\-]\s*/i;
 
 const SUBQUESTION =
-    /^([a-z])\s*[\)\.]\s*/i;
+    /^\(?([a-z])\s*[\)\.]\s*/i;
 
 const OPTION_START =
-    /^([a-h])\s*[\)\.]\s*(.+)$/i;
+    /^\(?([a-h])\s*[\)\.]\s*(.+)$/i;
 
 const DEVELOPMENT_CUES = [
     "explique", "explica", "explicar",
@@ -22,22 +22,24 @@ const DEVELOPMENT_CUES = [
     "identifique", "identifica", "identificar",
     "analise", "analisa", "analisar",
     "compare", "compara", "comparar",
-    "desenvolva", "desenvolve",
+    "desenvolva", "desenvolve", "desenvolver",
     "escreva", "escreve", "escrever",
-    "implemente", "implemente",
-    "construa", "constrói",
-    "demonstre", "demonstra",
-    "resolva", "resolve",
-    "prove", "prova",
+    "implemente", "implementar",
+    "construa", "construir",
+    "demonstre", "demonstrar",
+    "resolva", "resolver",
+    "prove", "provar",
+    "calcular", "explique",
     "calculate", "explain", "describe",
     "justify", "determine", "identify",
     "analyse", "analyze", "compare",
     "discuss", "write", "implement",
     "design", "develop", "find",
     "give", "show", "state",
+    "define", "evaluate", "calculate",
     "what is", "what are", "how does",
     "how many", "how much", "why",
-    "which", "define", "evaluate"
+    "which", "how", "when", "where"
 ];
 
 function normalize(text) {
@@ -46,15 +48,20 @@ function normalize(text) {
         .trim();
 }
 
-function startsWithDevelopmentCue(text) {
-    const lower = normalize(text).toLowerCase();
+function hasDevelopmentCue(text) {
+    const value = normalize(text).toLowerCase();
 
-    return DEVELOPMENT_CUES.some(cue =>
-        new RegExp(
-            `(?:^|[^\\p{L}])${cue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|[^\\p{L}])`,
+    return DEVELOPMENT_CUES.some(cue => {
+        const escaped = cue.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+        );
+
+        return new RegExp(
+            `(?:^|[^\\p{L}])${escaped}(?:$|[^\\p{L}])`,
             "u"
-        ).test(lower)
-    );
+        ).test(value);
+    });
 }
 
 function looksLikeQuestion(text) {
@@ -64,10 +71,10 @@ function looksLikeQuestion(text) {
 
     return (
         QUESTION_NUMBER.test(value) ||
-        SUBQUESTION.test(value) ||
-        /[?？]\s*$/.test(value) ||
-        startsWithDevelopmentCue(value) ||
-        /^(?:pergunta|quest[aã]o|question)\s*:/i.test(value)
+        /[?？]/.test(value) ||
+        hasDevelopmentCue(value) ||
+        /^(?:pergunta|quest[aã]o|question)\s*:/i.test(value) ||
+        /^(?:qual|quais|quem|quando|onde|como|porque|por que|what|which|who|when|where|how)\b/i.test(value)
     );
 }
 
@@ -103,26 +110,54 @@ function getOptionArea(line) {
     };
 }
 
+// Verifica se uma alínea é uma pergunta de desenvolvimento.
+// É importante fazer isto ANTES de procurar opções.
+function isDevelopmentSubquestion(text) {
+    const match = normalize(text).match(SUBQUESTION);
+
+    if (!match) return false;
+
+    const body = normalize(text.slice(match[0].length));
+
+    return (
+        hasDevelopmentCue(body) ||
+        /[?？]/.test(body) ||
+        /^(?:qual|quais|quem|quando|onde|como|porque|por que|what|which|who|when|where)\b/i.test(body)
+    );
+}
+
 function findInlineOptions(text, line) {
     const matches = [
-        ...text.matchAll(/(?:^|\s)([a-h])\s*[\)\.]\s*/gi)
+        ...text.matchAll(/(?:^|\s)(?:\(([a-h])\)|([a-h])\s*[\)\.])\s*/gi)
     ];
 
     if (matches.length < 2) return [];
+
+    // Se o texto antes das opções já for um enunciado,
+    // não devemos interpretar as alíneas como opções.
+    const firstStart = matches[0].index;
+
+    const questionPart = text.slice(0, firstStart);
+
+    if (
+        hasDevelopmentCue(questionPart) ||
+        /[?？]/.test(questionPart)
+    ) {
+        return [];
+    }
 
     const options = matches.map((match, index) => {
         const start = match.index + match[0].length;
         const end = matches[index + 1]?.index ?? text.length;
 
         return {
-            label: match[1].toUpperCase(),
+            label: (match[1] || match[2]).toUpperCase(),
             text: normalize(text.slice(start, end))
         };
     }).filter(option => option.text);
 
     if (options.length < 2) return [];
 
-    // Evitar interpretar letras aleatórias como opções.
     for (let i = 1; i < options.length; i++) {
         if (
             options[i].label.charCodeAt(0) !==
@@ -139,13 +174,17 @@ function findInlineOptions(text, line) {
 }
 
 export function classifyDocument(documentData) {
+    if (!documentData || !Array.isArray(documentData.pages)) {
+        throw new Error("Estrutura do PDF inválida.");
+    }
+
     return {
         pageCount: documentData.pageCount,
 
         pages: documentData.pages.map(page => ({
             ...page,
 
-            lines: page.lines.map(line => {
+            lines: (page.lines || []).map(line => {
                 const text = normalize(line.text);
 
                 if (!text) {
@@ -156,6 +195,17 @@ export function classifyDocument(documentData) {
                     return { ...line, type: "heading" };
                 }
 
+                // 1. Primeiro, reconhecer perguntas numeradas.
+                if (QUESTION_NUMBER.test(text)) {
+                    return { ...line, type: "question" };
+                }
+
+                // 2. Depois, reconhecer alíneas de desenvolvimento.
+                if (isDevelopmentSubquestion(text)) {
+                    return { ...line, type: "question" };
+                }
+
+                // 3. Só depois procurar opções de escolha múltipla.
                 const inlineOptions = findInlineOptions(text, line);
 
                 if (inlineOptions.length >= 2) {
@@ -181,16 +231,10 @@ export function classifyDocument(documentData) {
                 }
 
                 if (looksLikeQuestion(text)) {
-                    return {
-                        ...line,
-                        type: "question"
-                    };
+                    return { ...line, type: "question" };
                 }
 
-                return {
-                    ...line,
-                    type: "text"
-                };
+                return { ...line, type: "text" };
             })
         }))
     };
@@ -207,8 +251,7 @@ export function groupQuestions(classifiedDocument) {
 
         currentQuestion.text = normalize(currentQuestion.text);
 
-        currentQuestion.options =
-            currentQuestion.options || [];
+        currentQuestion.options ||= [];
 
         if (currentQuestion.text) {
             questions.push(currentQuestion);
@@ -219,24 +262,17 @@ export function groupQuestions(classifiedDocument) {
 
     function startQuestion(line, page, text) {
         const sub = text.match(SUBQUESTION);
-        const numbered = QUESTION_NUMBER.test(text);
 
         currentQuestion = {
             id: `p${page.pageNumber}-q${questions.length + 1}`,
             exercise,
-            label: sub
-                ? sub[1].toUpperCase()
-                : null,
+            label: sub ? sub[1].toUpperCase() : null,
             pageNumber: page.pageNumber,
             type: "development",
             text: getQuestionText(text),
             options: [],
             lines: [line]
         };
-
-        if (!numbered && !sub && !looksLikeQuestion(text)) {
-            currentQuestion.text = normalize(text);
-        }
     }
 
     function addOptions(options) {
@@ -269,12 +305,10 @@ export function groupQuestions(classifiedDocument) {
                 continue;
             }
 
-            // As opções podem aparecer em linhas diferentes.
-            if (line.type === "option") {
-                if (!currentQuestion) continue;
-
-                addOptions(line.options);
-                currentQuestion.lines.push(line);
+            // Perguntas e alíneas têm prioridade sobre opções.
+            if (line.type === "question") {
+                finishQuestion();
+                startQuestion(line, page, text);
                 continue;
             }
 
@@ -289,16 +323,16 @@ export function groupQuestions(classifiedDocument) {
                 continue;
             }
 
-            const numbered = QUESTION_NUMBER.test(text);
-            const sub = SUBQUESTION.test(text);
+            if (line.type === "option") {
+                if (currentQuestion) {
+                    addOptions(line.options);
+                    currentQuestion.lines.push(line);
+                }
 
-            if (line.type === "question" || numbered || sub) {
-                finishQuestion();
-                startQuestion(line, page, text);
                 continue;
             }
 
-            // Texto que continua o enunciado anterior.
+            // Texto de continuação do enunciado.
             if (currentQuestion) {
                 currentQuestion.text += " " + text;
                 currentQuestion.lines.push(line);
@@ -316,7 +350,7 @@ export function groupQuestions(classifiedDocument) {
         }
     });
 
-    console.log("Classificação final:", questions);
+    console.log("Perguntas identificadas:", questions);
 
     return questions;
 }
