@@ -1,0 +1,238 @@
+
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f7f5">
+
+  <title>Caderno Digital</title>
+
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./Caderno.png">
+</head>
+
+<body>
+
+  <main class="container">
+
+    <!-- CABEÇALHO PRINCIPAL -->
+    <header id="main-header">
+      <div>
+        <h1>Caderno<span>Digital.</span></h1>
+        <p>O teu espaço de estudo.</p>
+      </div>
+    </header>
+
+
+    <!-- AUTENTICAÇÃO -->
+    <section id="auth-section" class="auth-section">
+
+      <div class="section-heading">
+        <h2>Bem-vindo</h2>
+        <p>Entra na tua conta para acederes aos teus documentos.</p>
+      </div>
+
+      <div class="auth-form">
+
+        <label for="email">Endereço de email</label>
+        <input
+          id="email"
+          type="email"
+          placeholder="exemplo@email.com"
+          autocomplete="email"
+        >
+
+        <label for="password">Palavra-passe</label>
+        <input
+          id="password"
+          type="password"
+          placeholder="A tua palavra-passe"
+          autocomplete="current-password"
+        >
+
+        <div class="auth-actions">
+          <button id="login-btn">
+            Iniciar sessão
+          </button>
+
+          <button id="register-btn" class="secondary">
+            Criar conta
+          </button>
+        </div>
+
+      </div>
+
+      <p id="auth-message"></p>
+
+    </section>
+
+
+    <!-- BIBLIOTECA -->
+    <section id="library-section" hidden>
+
+      <!-- CABEÇALHO DA BIBLIOTECA -->
+      <div class="section-heading library-heading">
+
+        <div>
+          <h2>A minha biblioteca</h2>
+          <p>Todos os teus documentos de estudo num só lugar.</p>
+        </div>
+
+        <div class="account-actions">
+          <button id="logout-btn" class="secondary">
+            <span>↪</span> Sair
+          </button>
+
+          <button id="delete-account" class="delete-document">
+            Eliminar conta
+          </button>
+        </div>
+
+      </div>
+
+
+      <!-- ADICIONAR DOCUMENTOS -->
+      <div class="library-content">
+
+        <div class="library-section-title">
+          <h3>Os meus documentos</h3>
+          <p>Adiciona e organiza os teus materiais de estudo.</p>
+        </div>
+
+        <label class="upload-area" for="pdf-input">
+
+          <span class="upload-icon">＋</span>
+
+          <strong>Adicionar documento PDF</strong>
+
+          <small>
+            Seleciona um ficheiro PDF do teu dispositivo
+          </small>
+
+        </label>
+
+        <input
+          id="pdf-input"
+          type="file"
+          accept="application/pdf"
+          hidden
+        >
+
+        <p id="upload-message"></p>
+
+        <div id="document-list"></div>
+
+      </div>
+
+    </section>
+
+
+    <!-- LEITOR PDF -->
+    <section id="reader-section" hidden>
+
+      <!-- CABEÇALHO DO DOCUMENTO -->
+      <div class="reader-header">
+
+        <button id="back-library" class="secondary">
+          ← Biblioteca
+        </button>
+
+        <div id="reader-title">
+          Documento PDF
+        </div>
+
+      </div>
+
+
+      <!-- NAVEGAÇÃO DO PDF -->
+      <div class="reader-toolbar">
+
+        <div class="page-navigation">
+          <button id="previous-page" class="secondary">
+            ←
+          </button>
+
+          <span id="page-info">
+            Página 1 de 1
+          </span>
+
+          <button id="next-page" class="secondary">
+            →
+          </button>
+        </div>
+
+        <div class="toolbar-divider"></div>
+
+        <div class="zoom-controls">
+
+          <button id="zoom-out" class="secondary">
+            −
+          </button>
+
+          <span id="zoom-info">100%</span>
+
+          <button id="zoom-in" class="secondary">
+            +
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <!-- FERRAMENTAS DO EDITOR -->
+      <div class="editor-toolbar">
+
+        <div class="editor-tools">
+
+          <button id="mode-pen">
+            Escrever
+          </button>
+
+          <button id="mode-erase">
+            Apagar
+          </button>
+
+        </div>
+
+        <button id="export-pdf">
+          Exportar PDF preenchido
+        </button>
+
+      </div>
+
+
+      <p id="editor-help">
+        Seleciona respostas no caderno ou escreve diretamente no documento.
+      </p>
+
+
+      <!-- DOCUMENTO ORIGINAL -->
+      <div id="pdf-container">
+
+        <p id="pdf-loading">
+          A carregar PDF...
+        </p>
+
+        <div id="pdf-page-layer" hidden>
+
+          <canvas id="pdf-canvas"></canvas>
+
+          <canvas id="editor-canvas"></canvas>
+
+        </div>
+
+      </div>
+
+      <!-- O CADERNO DE RESPOSTAS É CRIADO AUTOMATICAMENTE PELO EDITOR -->
+
+    </section>
+
+  </main>
+
+  <script type="module" src="app.js"></script>
+
+</body>
+</html>

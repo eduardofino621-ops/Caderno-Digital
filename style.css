@@ -1,0 +1,1020 @@
+
+/* =========================================
+   CADERNO DIGITAL — DESIGN SYSTEM
+========================================= */
+
+:root {
+    --primary: #397b60;
+    --primary-dark: #285d47;
+    --primary-light: #eaf3ed;
+    --primary-soft: #f3f8f4;
+
+    --background: #f4f6f3;
+    --surface: #ffffff;
+    --surface-soft: #f8faf8;
+
+    --text: #202923;
+    --text-secondary: #68756d;
+    --text-muted: #929d95;
+
+    --border: #e6ebe6;
+    --border-strong: #d8e1d9;
+
+    --danger: #c45b58;
+    --blue: #386fc0;
+
+    --radius-sm: 9px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+
+    --shadow-sm: 0 2px 8px rgba(28, 49, 35, 0.04);
+    --shadow-md: 0 8px 25px rgba(28, 49, 35, 0.06);
+    --shadow-lg: 0 16px 45px rgba(28, 49, 35, 0.09);
+
+    --transition: 180ms ease;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(
+            circle at 10% 0%,
+            rgba(57, 123, 96, 0.055),
+            transparent 32%
+        ),
+        var(--background);
+
+    color: var(--text);
+    font-family:
+        Inter,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Arial,
+        sans-serif;
+
+    -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+    font: inherit;
+}
+
+button {
+    border: none;
+    cursor: pointer;
+    transition:
+        background var(--transition),
+        color var(--transition),
+        transform var(--transition),
+        box-shadow var(--transition);
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid rgba(57, 123, 96, 0.22);
+    outline-offset: 3px;
+}
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+
+/* =========================================
+   ESTRUTURA GERAL
+========================================= */
+
+.container {
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 48px 28px;
+}
+
+header {
+    margin-bottom: 42px;
+}
+
+header h1 {
+    margin: 0;
+    font-size: clamp(30px, 4vw, 39px);
+    font-weight: 750;
+    letter-spacing: -1.8px;
+    color: #24362b;
+}
+
+header h1 span {
+    color: var(--primary);
+}
+
+header p {
+    margin-top: 10px;
+    color: var(--text-secondary);
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+section {
+    background: var(--surface);
+    padding: 30px;
+    border: 1px solid rgba(222, 231, 223, 0.8);
+    border-radius: var(--radius-lg);
+    margin-bottom: 22px;
+    box-shadow: var(--shadow-sm);
+}
+
+h2 {
+    margin-top: 0;
+    margin-bottom: 18px;
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+h3 {
+    color: var(--text);
+}
+
+header,
+.section-heading {
+    line-height: 1.4;
+}
+
+header p,
+.section-heading p {
+    color: var(--text-secondary);
+}
+
+
+/* =========================================
+   CAMPOS DE TEXTO
+========================================= */
+
+input:not([type="file"]),
+textarea {
+    width: 100%;
+    padding: 14px 15px;
+    margin: 8px 0;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-soft);
+    color: var(--text);
+    font-size: 15px;
+    transition:
+        border-color var(--transition),
+        box-shadow var(--transition),
+        background var(--transition);
+}
+
+input:not([type="file"]):hover,
+textarea:hover {
+    border-color: #bdcec1;
+}
+
+input:not([type="file"]):focus,
+textarea:focus {
+    background: white;
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(57, 123, 96, 0.09);
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #a1aaa3;
+}
+
+
+/* =========================================
+   BOTÕES
+========================================= */
+
+button {
+    padding: 12px 19px;
+    border-radius: 10px;
+    background: var(--primary);
+    color: white;
+    font-size: 14px;
+    font-weight: 650;
+    box-shadow: 0 3px 8px rgba(57, 123, 96, 0.12);
+}
+
+button:hover:not(:disabled) {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 5px 13px rgba(57, 123, 96, 0.17);
+}
+
+button:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+button.secondary {
+    background: #edf1ed;
+    color: #425148;
+    box-shadow: none;
+}
+
+button.secondary:hover:not(:disabled) {
+    background: #e2eae3;
+    color: var(--primary-dark);
+}
+
+#auth-message,
+#upload-message {
+    color: var(--primary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+
+/* =========================================
+   CABEÇALHOS DE SECÇÃO
+========================================= */
+
+.section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+}
+
+.section-heading h2 {
+    margin-bottom: 5px;
+}
+
+.section-heading p {
+    margin-top: 0;
+    font-size: 14px;
+}
+
+
+/* =========================================
+   UPLOAD DE DOCUMENTOS
+========================================= */
+
+.upload-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+
+    padding: 42px 20px;
+    margin-top: 24px;
+
+    border: 2px dashed #c8d9cc;
+    border-radius: var(--radius-md);
+
+    background:
+        linear-gradient(
+            145deg,
+            #f8fbf8,
+            #f1f7f2
+        );
+
+    cursor: pointer;
+    text-align: center;
+
+    transition:
+        background var(--transition),
+        border-color var(--transition),
+        transform var(--transition);
+}
+
+.upload-area:hover {
+    background: #edf6ef;
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.upload-area span {
+    display: grid;
+    place-items: center;
+
+    width: 60px;
+    height: 60px;
+
+    border-radius: 18px;
+    background: white;
+
+    color: var(--primary);
+    font-size: 30px;
+
+    box-shadow: var(--shadow-sm);
+}
+
+.upload-area strong {
+    color: #354b3c;
+    font-size: 15px;
+}
+
+.upload-area small {
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+
+/* =========================================
+   LISTA DE DOCUMENTOS
+========================================= */
+
+.document {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+
+    padding: 18px 4px;
+    border-bottom: 1px solid var(--border);
+}
+
+.document:last-child {
+    border-bottom: none;
+}
+
+.document strong {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 14px;
+    font-weight: 650;
+}
+
+.document small {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+
+/* =========================================
+   LEITOR PDF
+========================================= */
+
+#reader-section {
+    padding: 24px;
+    overflow: hidden;
+}
+
+.reader-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+#reader-title {
+    overflow: hidden;
+    color: #334239;
+    font-size: 17px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.reader-toolbar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px;
+
+    padding: 12px;
+
+    background: #f5f7f4;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+}
+
+.reader-toolbar button {
+    min-width: 40px;
+    min-height: 38px;
+    margin: 0;
+    padding: 9px 13px;
+
+    background: white;
+    border: 1px solid var(--border);
+    color: #48564c;
+    box-shadow: none;
+}
+
+.reader-toolbar button:hover:not(:disabled) {
+    background: var(--primary-light);
+    border-color: #c8ddcd;
+    color: var(--primary-dark);
+}
+
+#page-info,
+#zoom-info {
+    padding: 0 5px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.toolbar-divider {
+    width: 1px;
+    height: 25px;
+    background: #dce3dc;
+}
+
+
+/* =========================================
+   ÁREA DO PDF
+========================================= */
+
+#pdf-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+
+    min-height: 65vh;
+    margin-top: 17px;
+    padding: 25px;
+
+    background:
+        radial-gradient(
+            circle at center,
+            #e8ebe7,
+            #e1e5e0
+        );
+
+    border: 1px solid #dfe5df;
+    border-radius: 14px;
+
+    overflow: auto;
+}
+
+#pdf-page-layer {
+    position: relative;
+    display: inline-block;
+    flex-shrink: 0;
+    line-height: 0;
+
+    background: white;
+    box-shadow: 0 5px 20px rgba(24, 37, 27, 0.12);
+}
+
+#pdf-page-layer[hidden] {
+    display: none;
+}
+
+#pdf-canvas {
+    display: block;
+    background: white;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+#editor-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+
+    display: block;
+
+    touch-action: none;
+}
+
+#pdf-loading {
+    padding: 35px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    text-align: center;
+}
+
+
+/* =========================================
+   EDITOR INTERATIVO
+========================================= */
+
+.editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 9px;
+    margin: 20px 0 8px;
+    padding: 12px;
+
+    background: #f5f7f4;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+}
+
+.editor-toolbar button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    min-height: 39px;
+    margin: 0;
+    padding: 9px 16px;
+
+    background: white;
+    border: 1px solid var(--border);
+    color: #526057;
+
+    font-size: 13px;
+    font-weight: 650;
+    box-shadow: none;
+}
+
+.editor-toolbar button:hover:not(:disabled) {
+    background: var(--primary-light);
+    border-color: #c8ddcd;
+    color: var(--primary-dark);
+}
+
+.editor-toolbar button.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    box-shadow: 0 3px 8px rgba(57, 123, 96, 0.17);
+}
+
+#editor-help {
+    margin: 10px 3px 14px;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+
+/* =========================================
+   CADERNO DE RESPOSTAS
+========================================= */
+
+#answers-panel {
+    margin-top: 28px;
+    padding: 27px;
+
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+
+    box-shadow: var(--shadow-sm);
+}
+
+#answers-panel > h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    margin: 0 0 22px;
+    padding-bottom: 17px;
+
+    border-bottom: 1px solid var(--border);
+
+    color: #34483a;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+}
+
+.answer-question {
+    padding: 24px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.answer-question:first-of-type {
+    border-top: none;
+}
+
+.answer-question:last-child {
+    border-bottom: none;
+    padding-bottom: 4px;
+}
+
+.answer-question h3 {
+    margin: 0 0 12px;
+    color: #34483a;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.5;
+}
+
+.question-prompt {
+    color: #59665d;
+    font-size: 14px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+}
+
+
+/* =========================================
+   OPÇÕES DE ESCOLHA MÚLTIPLA
+========================================= */
+
+.question-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 17px;
+}
+
+.question-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 13px;
+
+    padding: 15px 16px;
+
+    background: #fafcf9;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+
+    color: #45534a;
+    font-size: 14px;
+    line-height: 1.65;
+
+    cursor: pointer;
+
+    transition:
+        background var(--transition),
+        border-color var(--transition),
+        transform var(--transition),
+        box-shadow var(--transition);
+}
+
+.question-option:hover {
+    background: #f3f8f3;
+    border-color: #c8d9cb;
+    transform: translateX(2px);
+}
+
+.question-option:has(input:checked) {
+    background: #edf5ef;
+    border-color: #77a98b;
+    box-shadow: 0 0 0 2px rgba(57, 123, 96, 0.07);
+    color: #285d47;
+}
+
+.question-option input {
+    flex-shrink: 0;
+
+    width: 17px;
+    height: 17px;
+
+    margin: 3px 0 0;
+
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+
+/* =========================================
+   RESPOSTAS DE DESENVOLVIMENTO
+========================================= */
+
+.development-answer {
+    display: block;
+    width: 100%;
+    min-height: 170px;
+
+    margin-top: 17px;
+    padding: 16px;
+
+    background:
+        linear-gradient(
+            white,
+            white
+        );
+
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+
+    color: #35443a;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.8;
+
+    resize: vertical;
+
+    transition:
+        border-color var(--transition),
+        box-shadow var(--transition);
+}
+
+.development-answer::placeholder {
+    color: #a3ada5;
+}
+
+.development-answer:hover {
+    border-color: #b9cbbd;
+}
+
+.development-answer:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(57, 123, 96, 0.08);
+}
+
+
+/* =========================================
+   INDICAÇÃO DE PÁGINA
+========================================= */
+
+.question-page {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 5px 9px;
+
+    background: #f1f4f0;
+    border-radius: 6px;
+
+    color: #849087;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+
+/* =========================================
+   EXPORTAÇÃO
+========================================= */
+
+#export-pdf {
+    margin-top: 0;
+    background: var(--blue);
+    box-shadow: 0 3px 9px rgba(56, 111, 192, 0.14);
+}
+
+#export-pdf:hover:not(:disabled) {
+    background: #2c5da5;
+    box-shadow: 0 5px 13px rgba(56, 111, 192, 0.2);
+}
+
+
+/* =========================================
+   SCROLLBARS
+========================================= */
+
+#pdf-container {
+    scrollbar-width: thin;
+    scrollbar-color: #bdc9bf transparent;
+}
+
+#pdf-container::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+}
+
+#pdf-container::-webkit-scrollbar-thumb {
+    background: #bdc9bf;
+    border: 2px solid #e5e9e4;
+    border-radius: 20px;
+}
+
+#pdf-container::-webkit-scrollbar-thumb:hover {
+    background: #9eafa2;
+}
+
+
+/* =========================================
+   ANIMAÇÕES E ACESSIBILIDADE
+========================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
+}
+
+
+/* =========================================
+   TABLET
+========================================= */
+
+@media (max-width: 800px) {
+    .container {
+        padding: 30px 18px;
+    }
+
+    section {
+        padding: 24px;
+    }
+
+    #reader-section {
+        padding: 18px;
+    }
+
+    #pdf-container {
+        padding: 15px;
+    }
+
+    #answers-panel {
+        padding: 22px;
+    }
+}
+
+
+/* =========================================
+   TELEMÓVEL
+========================================= */
+
+@media (max-width: 600px) {
+    .container {
+        padding: 22px 11px;
+    }
+
+    header {
+        margin-bottom: 28px;
+        padding: 0 5px;
+    }
+
+    header h1 {
+        font-size: 30px;
+    }
+
+    header p {
+        font-size: 13px;
+    }
+
+    section {
+        padding: 19px;
+        border-radius: 16px;
+    }
+
+    h2 {
+        font-size: 19px;
+    }
+
+    .section-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .section-heading button {
+        width: 100%;
+    }
+
+    .upload-area {
+        padding: 32px 14px;
+    }
+
+    .document {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .document button {
+        width: 100%;
+    }
+
+    #reader-section {
+        padding: 12px;
+    }
+
+    .reader-header {
+        gap: 9px;
+        margin-bottom: 13px;
+    }
+
+    .reader-header button {
+        padding: 10px 12px;
+        font-size: 12px;
+    }
+
+    #reader-title {
+        font-size: 14px;
+    }
+
+    .reader-toolbar {
+        gap: 6px;
+        padding: 9px 6px;
+        border-radius: 10px;
+    }
+
+    .reader-toolbar button {
+        min-width: 34px;
+        min-height: 35px;
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+
+    #page-info,
+    #zoom-info {
+        padding: 0 3px;
+        font-size: 11px;
+    }
+
+    .toolbar-divider {
+        display: none;
+    }
+
+    #pdf-container {
+        min-height: 65vh;
+        padding: 9px;
+        margin-top: 12px;
+        border-radius: 10px;
+    }
+
+    .editor-toolbar {
+        gap: 7px;
+        padding: 9px;
+    }
+
+    .editor-toolbar button {
+        flex: 1 1 auto;
+        padding: 10px 11px;
+        font-size: 12px;
+    }
+
+    #editor-help {
+        font-size: 11px;
+    }
+
+    #answers-panel {
+        margin-top: 18px;
+        padding: 18px;
+        border-radius: 15px;
+    }
+
+    #answers-panel > h2 {
+        font-size: 18px;
+    }
+
+    .answer-question {
+        padding: 20px 0;
+    }
+
+    .answer-question h3 {
+        font-size: 15px;
+    }
+
+    .question-prompt {
+        font-size: 13px;
+    }
+
+    .question-option {
+        padding: 13px;
+        font-size: 13px;
+    }
+
+    .development-answer {
+        min-height: 155px;
+        padding: 13px;
+        font-size: 15px;
+    }
+
+    #export-pdf {
+        width: 100%;
+        margin-top: 12px;
+    }
+}
+
+
+/* =========================================
+   ECRÃS GRANDES
+========================================= */
+
+@media (min-width: 1000px) {
+    body:has(#reader-section:not([hidden])) .container {
+        max-width: 1450px;
+        padding: 35px 35px;
+    }
+
+    #reader-section {
+        padding: 28px;
+    }
+
+    #pdf-container {
+        min-height: 80vh;
+        padding: 30px;
+    }
+}
+.document-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.delete-document {
+    background: #fff0ef;
+    color: #c0392b;
+    border: 1px solid #f2d0cc;
+}
+
+.delete-document:hover {
+    background: #fce1de;
+}
