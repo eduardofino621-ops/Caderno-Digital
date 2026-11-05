@@ -433,9 +433,8 @@ button.secondary:hover:not(:disabled) {
     background: #dce3dc;
 }
 
-
 /* =========================================
-   ÁREA DO PDF
+   ÁREA DO PDF — SUPORTE PARA ZOOM TÁTIL
 ========================================= */
 
 #pdf-container {
@@ -447,17 +446,21 @@ button.secondary:hover:not(:disabled) {
     margin-top: 17px;
     padding: 25px;
 
-    background:
-        radial-gradient(
-            circle at center,
-            #e8ebe7,
-            #e1e5e0
-        );
+    background: radial-gradient(
+        circle at center,
+        #e8ebe7,
+        #e1e5e0
+    );
 
     border: 1px solid #dfe5df;
     border-radius: 14px;
 
     overflow: auto;
+
+    /* Permite scroll normal, mas deixa o JS controlar a pinça */
+    touch-action: pan-x pan-y;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 #pdf-page-layer {
@@ -468,6 +471,10 @@ button.secondary:hover:not(:disabled) {
 
     background: white;
     box-shadow: 0 5px 20px rgba(24, 37, 27, 0.12);
+
+    /* Evita transições que atrasem o zoom */
+    transform-origin: center center;
+    will-change: transform;
 }
 
 #pdf-page-layer[hidden] {
@@ -489,6 +496,8 @@ button.secondary:hover:not(:disabled) {
     display: block;
 
     touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 #pdf-loading {
@@ -497,6 +506,7 @@ button.secondary:hover:not(:disabled) {
     font-size: 14px;
     text-align: center;
 }
+
 
 
 /* =========================================
@@ -1017,4 +1027,28 @@ button.secondary:hover:not(:disabled) {
 
 .delete-document:hover {
     background: #fce1de;
+}
+
+
+/* =========================================
+   GESTOS TÁTEIS
+========================================= */
+
+#pdf-container,
+#pdf-page-layer {
+    -webkit-tap-highlight-color: transparent;
+}
+
+#pdf-page-layer {
+    backface-visibility: hidden;
+}
+
+#editor-canvas {
+    -webkit-touch-callout: none;
+}
+
+/* Evita seleção acidental de texto durante a interação */
+#pdf-container canvas {
+    user-select: none;
+    -webkit-user-select: none;
 }

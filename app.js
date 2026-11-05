@@ -1,17 +1,11 @@
 
 import { supabase } from "./database.js";
-
 import {
     initEditor,
     setAutomaticQuestions
 } from "./editor.js";
 
 import { analyzePDF } from "./pdf-analyzer.js";
-
-import {
-    classifyDocument,
-    groupQuestions
-} from "./document-classifier.js";
 
 import {
     openPDF,
@@ -319,19 +313,16 @@ async function uploadPDF(file) {
     await loadDocuments();
 }
 
-// Abrir documento
+// Abrir documento e analisar com IA
 async function openDocument(doc) {
     uploadMessage.textContent = "";
 
     try {
-        const { data, error } = await supabase.storage
+        const {data, error} = await supabase.storage
             .from("study-pdfs")
             .createSignedUrl(doc.file_path, 3600);
 
-        if (error) {
-            uploadMessage.textContent = error.message;
-            return;
-        }
+        if (error) throw error;
 
         activeDocument = doc;
         activePdfUrl = data.signedUrl;
@@ -347,39 +338,162 @@ async function openDocument(doc) {
             exportButton.disabled = true;
         }
 
-        // Inicializar o editor
         initEditor(doc.id);
 
         // Abrir o PDF
         await openPDF(activePdfUrl);
 
-        // Analisar o conteúdo do PDF
-        const analysis = await analyzePDF(activePdfUrl);
+        // Extrair texto e coordenadas
+        uploadMessage.textContent = "A extrair texto do PDF...";
 
-        // Classificar o conteúdo
-        const classified = classifyDocument(analysis);
+        const pdfAnalysis = await analyzePDF(activePdfUrl);
 
-        // Agrupar as perguntas e alíneas
-        const questions = groupQuestions(classified);
+        if (!pdfAnalysis.pages?.length) {
+            throw new Error("Não foi possível extrair páginas do PDF.");
+        }
 
-        activeQuestions = questions;
+        // Obter a sessão atual
+        const {data: sessionData, error: sessionError} =
+            await supabase.auth.getSession();
 
-        // Enviar perguntas para o editor
-        await setAutomaticQuestions(questions);
+        if (sessionError) throw sessionError;
+
+        const session = sessionData.session;
+
+        if (!session?.access_token) {
+            throw new Error(
+                "Não existe uma sessão ativa. Termina sessão e volta a entrar."
+            );
+        }
+
+        // Enviar o conteúdo para a Edge Function
+        uploadMessage.textContent = "A analisar o documento com inteligência artificial...";
+
+// Preparar uma versão compacta dos dados para a IA.
+// Mantém texto e coordenadas, mas remove metadados desnecessários.
+
+        const pagesForAI = pdfAnalysis.pages.map(page => ({
+            pageNumber: page.pageNumber,
+            width: page.width,
+            height: page.height,
+
+            lines: page.lines.map(line => ({
+                lineIndex: line.lineIndex,
+                text: line.text,
+
+                x: line.x,
+                y: line.y,
+                width: line.width,
+                height: line.height,
+
+                items: (line.items || []).map(item => ({
+                    text: item.text,
+                    x: item.x,
+                    y: item.y,
+                    width: item.width,
+                    height: item.height
+                }))
+            }))
+        }));
+
+        const requestBody = {
+            documentId: doc.id,
+            pages: pagesForAI
+        };
+
+// Medir o tamanho real do pedido.
+        const payloadSize = new TextEncoder().encode(
+            JSON.stringify(requestBody)
+        ).length;
+
+        console.log("Tamanho do pedido para IA:", {
+            bytes: payloadSize,
+            megabytes: (payloadSize / 1024 / 1024).toFixed(2)
+        });
+
+// Enviar para a Edge Function.
+        const {data: result, error: analysisError} =
+            await supabase.functions.invoke("analyze-document", {
+                body: requestBody
+            });
+
+        if (analysisError) {
+            let details = analysisError.message;
+
+            if (analysisError.context) {
+                try {
+                    const response = await analysisError.context.json();
+                    details = response.error || response.message || details;
+                } catch {
+                    // Mantém a mensagem original.
+                }
+            }
+
+            throw new Error("Erro na análise por IA: " + details);
+        }
+
+        if (!result?.success) {
+            throw new Error(
+                result?.error || "A inteligência artificial não devolveu uma análise válida."
+            );
+        }
+
+        // Obter perguntas devolvidas pela IA
+        const questions = result.analysis?.questions;
+
+        if (!Array.isArray(questions)) {
+            throw new Error(
+                "A resposta da IA não contém uma lista válida de perguntas."
+            );
+        }
+
+        // Normalizar estrutura para o editor
+        activeQuestions = questions.map((question, index) => ({
+            id: String(question.id || `question-${index + 1}`),
+            exercise: question.exercise || "",
+            label: question.label || "",
+            pageNumber: Number(question.pageNumber) || 1,
+            lineIndex: Number(question.lineIndex) || 0,
+            type: [
+                "development",
+                "multiple_choice",
+                "statement"
+            ].includes(question.type)
+                ? question.type
+                : "development",
+            context: question.context || "",
+            text: question.text || "",
+            options: Array.isArray(question.options)
+                ? question.options.map(option => ({
+                    label: String(option.label || ""),
+                    text: String(option.text || ""),
+                    area: option.area || null
+                }))
+                : []
+        }));
+
+        // Enviar para o editor
+        await setAutomaticQuestions(activeQuestions);
 
         if (exportButton) {
             exportButton.disabled = false;
         }
 
-        console.log("Perguntas identificadas:");
+        uploadMessage.textContent = "";
+
+        console.log("Análise da IA:", {
+            modelo: result.model,
+            cache: result.cached,
+            total: activeQuestions.length
+        });
 
         console.table(
-            questions.map(question => ({
+            activeQuestions.map(question => ({
                 exercício: question.exercise,
                 alínea: question.label || "-",
                 tipo: question.type,
                 enunciado: question.text,
-                opções: question.options?.length
+                opções: question.options.length
                     ? question.options.map(option => option.label).join(", ")
                     : "-"
             }))
@@ -390,6 +504,10 @@ async function openDocument(doc) {
 
         uploadMessage.textContent =
             "Não foi possível analisar o documento: " + error.message;
+
+        if (exportButton) {
+            exportButton.disabled = true;
+        }
     }
 }
 

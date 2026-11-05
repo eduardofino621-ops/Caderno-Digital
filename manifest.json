@@ -11,13 +11,13 @@
   "theme_color": "#f7f7f5",
   "icons": [
     {
-      "src": "./icon-192.png",
+      "src": "./Caderno.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./icon-512.png",
+      "src": "./Caderno.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"

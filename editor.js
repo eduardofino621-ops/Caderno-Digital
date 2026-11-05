@@ -14,9 +14,17 @@ let currentStroke = null;
 let saveTimer = null;
 let editorInitialized = false;
 
+// Controlo dos gestos de toque
+let pinching = false;
+let activeTouchPointers = new Set();
+
 const canvas = document.getElementById("editor-canvas");
 const ctx = canvas.getContext("2d");
 const pdfCanvas = document.getElementById("pdf-canvas");
+
+// =====================================
+// INICIALIZAÇÃO
+// =====================================
 
 export function initEditor(id) {
     documentId = id;
@@ -34,10 +42,25 @@ export function initEditor(id) {
         canvas.addEventListener("pointerdown", pointerDown);
         canvas.addEventListener("pointermove", pointerMove);
         canvas.addEventListener("pointerup", pointerUp);
-        canvas.addEventListener("pointercancel", pointerUp);
+        canvas.addEventListener("pointercancel", pointerCancel);
 
         window.addEventListener("pdf-page-rendered", event => {
             prepareCanvas(event.detail.page);
+        });
+
+        // O PDF Viewer avisa quando começa o zoom com dois dedos
+        window.addEventListener("pdf-pinch-start", () => {
+            pinching = true;
+            activeTouchPointers.clear();
+
+            cancelCurrentStroke();
+            draw();
+        });
+
+        // O PDF Viewer avisa quando termina o zoom
+        window.addEventListener("pdf-pinch-end", () => {
+            pinching = false;
+            activeTouchPointers.clear();
         });
 
         editorInitialized = true;
@@ -47,8 +70,17 @@ export function initEditor(id) {
     selected = [];
     questions = [];
 
+    drawing = false;
+    currentStroke = null;
+    pinching = false;
+    activeTouchPointers.clear();
+
     setMode("select");
 }
+
+// =====================================
+// PERGUNTAS AUTOMÁTICAS
+// =====================================
 
 export async function setAutomaticQuestions(foundQuestions) {
     questions = foundQuestions || [];
@@ -56,9 +88,9 @@ export async function setAutomaticQuestions(foundQuestions) {
     await renderQuestions();
 }
 
-/* =====================================
-   APRESENTAÇÃO DAS PERGUNTAS
-===================================== */
+// =====================================
+// APRESENTAÇÃO DAS PERGUNTAS
+// =====================================
 
 async function renderQuestions() {
     let panel = document.getElementById("answers-panel");
@@ -75,12 +107,13 @@ async function renderQuestions() {
 
     const heading = document.createElement("h2");
     heading.textContent = "Caderno de respostas";
-
     panel.appendChild(heading);
 
     if (!questions.length) {
         const message = document.createElement("p");
-        message.textContent = "Não foram identificadas perguntas neste documento.";
+
+        message.textContent =
+            "Não foram identificadas perguntas neste documento.";
 
         panel.appendChild(message);
         return;
@@ -91,12 +124,12 @@ async function renderQuestions() {
 
         const article = document.createElement("article");
         article.className = "answer-question";
-
         article.dataset.questionId = question.id;
 
         const title = document.createElement("h3");
 
-        const exercise = question.exercise || `Pergunta ${index + 1}`;
+        const exercise =
+            question.exercise || `Pergunta ${index + 1}`;
 
         title.textContent =
             `${exercise}${question.label ? " — " + question.label : ""}`;
@@ -107,24 +140,32 @@ async function renderQuestions() {
 
         article.append(title, prompt);
 
-        if (question.type === "multiple_choice") {
+        // Enunciado: não cria caixa de resposta
+        if (question.type === "statement") {
+            article.classList.add("question-statement");
+
+        // Escolha múltipla
+        } else if (question.type === "multiple_choice") {
             await renderMultipleChoice(article, question);
+
+        // Desenvolvimento e alíneas
         } else {
             await renderDevelopment(article, question);
         }
 
         const pageInfo = document.createElement("small");
         pageInfo.className = "question-page";
-        pageInfo.textContent = `Página ${question.pageNumber || 1}`;
+        pageInfo.textContent =
+            `Página ${question.pageNumber || 1}`;
 
         article.appendChild(pageInfo);
         panel.appendChild(article);
     }
 }
 
-/* =====================================
-   ESCOLHA MÚLTIPLA
-===================================== */
+// =====================================
+// ESCOLHA MÚLTIPLA
+// =====================================
 
 async function renderMultipleChoice(article, question) {
     const optionsContainer = document.createElement("div");
@@ -160,7 +201,11 @@ async function renderMultipleChoice(article, question) {
             `${option.label}) ${option.text}`;
 
         checkbox.addEventListener("change", async () => {
-            await toggleOption(page, optionId, checkbox.checked);
+            await toggleOption(
+                page,
+                optionId,
+                checkbox.checked
+            );
         });
 
         label.append(checkbox, optionText);
@@ -180,10 +225,11 @@ async function toggleOption(page, optionId, checked) {
 
     if (error) {
         console.error("Erro ao carregar seleção:", error);
+        showSaveStatus(error);
         return;
     }
 
-    let options = data?.selected_options || [];
+    let options = [...(data?.selected_options || [])];
 
     if (checked && !options.includes(optionId)) {
         options.push(optionId);
@@ -207,16 +253,12 @@ async function toggleOption(page, optionId, checked) {
             onConflict: "document_id,question_key"
         });
 
-    if (saveError) {
-        console.error("Erro ao guardar seleção:", saveError);
-    }
-
     showSaveStatus(saveError);
 }
 
-/* =====================================
-   PERGUNTAS DE DESENVOLVIMENTO
-===================================== */
+// =====================================
+// PERGUNTAS DE DESENVOLVIMENTO
+// =====================================
 
 async function renderDevelopment(article, question) {
     const textarea = document.createElement("textarea");
@@ -295,9 +337,9 @@ async function saveTextAnswer(questionId, text) {
     }, 600);
 }
 
-/* =====================================
-   MODOS DE EDIÇÃO
-===================================== */
+// =====================================
+// MODOS DE EDIÇÃO
+// =====================================
 
 function setMode(newMode) {
     mode = newMode;
@@ -321,9 +363,9 @@ function setMode(newMode) {
         newMode === "pen" ? "crosshair" : "default";
 }
 
-/* =====================================
-   CANVAS E DESENHO
-===================================== */
+// =====================================
+// CANVAS E DESENHO
+// =====================================
 
 function getPoint(event) {
     const rect = canvas.getBoundingClientRect();
@@ -402,16 +444,41 @@ function draw() {
     });
 }
 
-/* =====================================
-   INTERAÇÃO COM O DESENHO
-===================================== */
+// =====================================
+// INTERAÇÃO COM O DESENHO
+// =====================================
+
+function cancelCurrentStroke() {
+    if (currentStroke) {
+        const index = strokes.indexOf(currentStroke);
+
+        if (index !== -1) {
+            strokes.splice(index, 1);
+        }
+    }
+
+    drawing = false;
+    currentStroke = null;
+}
 
 function pointerDown(event) {
+    if (event.pointerType === "touch") {
+        activeTouchPointers.add(event.pointerId);
+    }
+
+    // Não desenhar durante o zoom com dois dedos
+    if (pinching || activeTouchPointers.size >= 2) {
+        cancelCurrentStroke();
+        draw();
+        return;
+    }
+
     if (!documentId || !canvas.width) return;
 
     if (mode === "select") return;
 
     event.preventDefault();
+
     canvas.setPointerCapture(event.pointerId);
 
     const point = getPoint(event);
@@ -436,6 +503,12 @@ function pointerDown(event) {
 }
 
 function pointerMove(event) {
+    if (pinching || activeTouchPointers.size >= 2) {
+        cancelCurrentStroke();
+        draw();
+        return;
+    }
+
     if (!drawing || !currentStroke) return;
 
     event.preventDefault();
@@ -447,7 +520,13 @@ function pointerMove(event) {
     draw();
 }
 
-function pointerUp() {
+function pointerUp(event) {
+    if (event.pointerType === "touch") {
+        activeTouchPointers.delete(event.pointerId);
+    }
+
+    if (pinching) return;
+
     if (!drawing) return;
 
     drawing = false;
@@ -457,9 +536,18 @@ function pointerUp() {
     savePage();
 }
 
-/* =====================================
-   APAGAR DESENHOS
-===================================== */
+function pointerCancel(event) {
+    if (event.pointerType === "touch") {
+        activeTouchPointers.delete(event.pointerId);
+    }
+
+    cancelCurrentStroke();
+    draw();
+}
+
+// =====================================
+// APAGAR DESENHOS
+// =====================================
 
 function eraseAt(point) {
     let nearest = -1;
@@ -489,9 +577,9 @@ function eraseAt(point) {
     savePage();
 }
 
-/* =====================================
-   GUARDAR DESENHOS
-===================================== */
+// =====================================
+// GUARDAR DESENHOS
+// =====================================
 
 async function savePage() {
     const drawingData = strokes.filter(
@@ -527,12 +615,14 @@ async function savePage() {
     showSaveStatus(error);
 }
 
-/* =====================================
-   ESTADO DE GRAVAÇÃO
-===================================== */
+// =====================================
+// ESTADO DE GRAVAÇÃO
+// =====================================
 
 function showSaveStatus(error) {
     const help = document.getElementById("editor-help");
+
+    if (!help) return;
 
     if (error) {
         console.error("Erro ao guardar:", error);
