@@ -1,4 +1,3 @@
-
 import { supabase } from "./database.js";
 
 import {
@@ -10,14 +9,18 @@ import {
 export async function exportEditedPDF({
     url,
     documentId,
-    questions
+    questions,
+    documentName
 }) {
     const message = document.getElementById("editor-help");
 
     try {
-        message.textContent = "A preparar o PDF...";
+        message.textContent = "A preparar o teu caderno...";
 
-        // Obter o PDF original.
+        // ============================================
+        // 1. CARREGAR PDF ORIGINAL
+        // ============================================
+
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -27,11 +30,66 @@ export async function exportEditedPDF({
         const originalBytes = await response.arrayBuffer();
         const pdfDoc = await PDFDocument.load(originalBytes);
 
-        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-        const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+        const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+        const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+        const italic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+        const serifBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
 
-        // Obter todas as respostas guardadas.
-        const { data: answers, error } = await supabase
+        // ============================================
+        // 2. IDENTIDADE VISUAL EDITORIAL (Elegante & Premium)
+        // ============================================
+
+        const C = {
+            green: rgb(0.10, 0.16, 0.14),       // Verde escuro sofisticado (quase carvão)
+            greenLight: rgb(0.92, 0.94, 0.93),  // Cinza-esverdeado muito claro
+            greenPale: rgb(0.96, 0.97, 0.96),   // Quase translúcido
+
+            ink: rgb(0.15, 0.15, 0.15),         // Preto suave (mais confortável na leitura)
+            secondary: rgb(0.35, 0.35, 0.35),   // Cinza médio elegante
+            muted: rgb(0.55, 0.55, 0.55),       // Cinza claro para metadados
+
+            line: rgb(0.85, 0.83, 0.80),        // Linhas quentes e subtis
+            paper: rgb(0.98, 0.97, 0.95),       // Cor de papel off-white (clássico)
+            white: rgb(1, 1, 1),                // Branco puro para destaques
+
+            missing: rgb(0.75, 0.40, 0.35),     // Terracota (elegante em vez de vermelho erro)
+            accent: rgb(0.78, 0.55, 0.35)       // Bronze/Dourado mate para detalhes finos
+        };
+
+        const W = 595.28;
+        const H = 841.89;
+
+        const M = 62;
+        const CONTENT = W - (M * 2);
+
+        const TOP = H - 65;
+        const BOTTOM = 65;
+
+        // ============================================
+        // 3. NOME DO DOCUMENTO
+        // ============================================
+
+        function cleanFileName(name) {
+            return (name || "Documento")
+                .replace(/\.pdf$/i, "")
+                .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+                .replace(/\s+/g, " ")
+                .trim() || "Documento";
+        }
+
+        const finalName = cleanFileName(documentName);
+
+        const date = new Intl.DateTimeFormat("pt-PT", {
+            day: "2-digit",
+            month: "long",
+            year: "numeric"
+        }).format(new Date());
+
+        // ============================================
+        // 4. RECUPERAR RESPOSTAS
+        // ============================================
+
+        const {data: answers, error} = await supabase
             .from("answers")
             .select("*")
             .eq("document_id", documentId);
@@ -39,147 +97,136 @@ export async function exportEditedPDF({
         if (error) throw error;
 
         const answerMap = new Map(
-            (answers || []).map(answer => [
-                answer.question_key,
-                answer
-            ])
+            (answers || []).map(a => [a.question_key, a])
         );
 
-        // Incorporar desenhos e seleções nas páginas originais.
+        // ============================================
+        // 5. PRESERVAR DESENHOS ORIGINAIS
+        // ============================================
+
         const originalPages = pdfDoc.getPages();
 
-        for (const page of originalPages) {
-            const pageNumber = originalPages.indexOf(page) + 1;
-            const { width, height } = page.getSize();
+        for (let i = 0; i < originalPages.length; i++) {
+            const page = originalPages[i];
+            const {width, height} = page.getSize();
 
-            const saved = answerMap.get(`page-${pageNumber}`);
+            const saved = answerMap.get(`page-${i + 1}`);
 
-            if (!saved) continue;
+            if (!saved?.drawing_data) continue;
 
-            const selected = saved.selected_options || [];
-            const drawings = saved.drawing_data || [];
+            for (const item of saved.drawing_data) {
 
-            // Desenhos à mão e zonas manuais.
-            for (const item of drawings) {
-                if (item.type === "stroke" && item.points?.length > 1) {
-                    for (let i = 1; i < item.points.length; i++) {
-                        const a = item.points[i - 1];
-                        const b = item.points[i];
-
-                        page.drawLine({
-                            start: {
-                                x: a.x * width,
-                                y: height - a.y * height
-                            },
-                            end: {
-                                x: b.x * width,
-                                y: height - b.y * height
-                            },
-                            thickness: item.width || 2,
-                            color: rgb(0.14, 0.42, 0.81)
-                        });
-                    }
-                }
-
-                if (item.type === "zone") {
-                    page.drawRectangle({
-                        x: item.x * width,
-                        y: height - (item.y + item.h) * height,
-                        width: item.w * width,
-                        height: item.h * height,
-                        borderColor: rgb(0.15, 0.59, 0.43),
-                        borderWidth: 1.5
-                    });
-                }
-            }
-
-            // Assinalar opções selecionadas.
-            for (const question of questions) {
-                if (question.type !== "multiple_choice" ||
-                    question.pageNumber !== pageNumber) {
+                if (
+                    item.type !== "stroke" ||
+                    item.points?.length < 2
+                ) {
                     continue;
                 }
 
-                for (const option of question.options || []) {
-                    const id = `auto-${question.id}-${option.label}`;
+                for (let p = 1; p < item.points.length; p++) {
+                    const a = item.points[p - 1];
+                    const b = item.points[p];
 
-                    if (!selected.includes(id) || !option.area) continue;
-
-                    const area = option.area;
-
-                    page.drawRectangle({
-                        x: area.x * width,
-                        y: height - (area.y + area.height) * height,
-                        width: area.width * width,
-                        height: area.height * height,
-                        color: rgb(0.15, 0.59, 0.43),
-                        opacity: 0.20,
-                        borderColor: rgb(0.15, 0.59, 0.43),
-                        borderWidth: 1.5
+                    page.drawLine({
+                        start: {
+                            x: a.x * width,
+                            y: height - (a.y * height)
+                        },
+                        end: {
+                            x: b.x * width,
+                            y: height - (b.y * height)
+                        },
+                        thickness: item.width || 1.5,
+                        color: C.green,
+                        opacity: 0.9
                     });
                 }
             }
         }
 
-        // Criar páginas adicionais para respostas de desenvolvimento.
-        const developmentQuestions = questions.filter(
-            question => question.type === "development"
-        );
+        // ============================================
+        // 6. PREPARAR EXERCÍCIOS
+        // ============================================
 
-        const answeredQuestions = [];
+        const prepared = (questions || [])
+            .filter(q =>
+                q.type === "development" ||
+                q.type === "multiple_choice"
+            )
+            .map((question, index) => {
 
-        for (const question of developmentQuestions) {
-            const saved = answerMap.get(question.id);
+                const saved = answerMap.get(
+                    question.type === "multiple_choice"
+                        ? `page-${question.pageNumber || 1}`
+                        : question.id
+                );
 
-            const text = saved?.drawing_data?.find(
-                item => item.type === "text-answer"
-            )?.text || "";
+                let answer = "";
+                let missing = true;
 
-            answeredQuestions.push({ question, text });
-        }
+                if (question.type === "development") {
 
-        if (answeredQuestions.length) {
-            const pageWidth = 595.28;
-            const pageHeight = 841.89;
-            const margin = 55;
-            const lineHeight = 17;
+                    const textAnswer = saved?.drawing_data?.find(
+                        item => item.type === "text-answer"
+                    )?.text;
 
-            let page = null;
-            let y = 0;
+                    if (textAnswer?.trim()) {
+                        answer = textAnswer.trim();
+                        missing = false;
+                    }
+                }
 
-            function newAnswerPage() {
-                page = pdfDoc.addPage([pageWidth, pageHeight]);
+                if (question.type === "multiple_choice") {
 
-                page.drawText("Respostas", {
-                    x: margin,
-                    y: pageHeight - 55,
-                    size: 17,
-                    font: boldFont,
-                    color: rgb(0.15, 0.40, 0.30)
-                });
+                    const selected = saved?.selected_options || [];
+                    const labels = [];
 
-                page.drawLine({
-                    start: { x: margin, y: pageHeight - 68 },
-                    end: { x: pageWidth - margin, y: pageHeight - 68 },
-                    thickness: 1,
-                    color: rgb(0.75, 0.80, 0.76)
-                });
+                    for (const opt of question.options || []) {
 
-                y = pageHeight - 100;
-            }
+                        const expectedId =
+                            `auto-${question.id}-${opt.label}`;
 
-            function wrapText(text, maxWidth, size = 11) {
-                const words = text.split(/\s+/);
-                const lines = [];
+                        if (selected.includes(expectedId)) {
+                            labels.push(`${opt.label}. ${opt.text}`);
+                            missing = false;
+                        }
+                    }
+
+                    answer = labels.join("\n");
+                }
+
+                return {
+                    question,
+                    answer: answer || "Ainda sem resposta.",
+                    missing,
+                    index: index + 1
+                };
+            });
+
+        // ============================================
+        // 7. FUNÇÕES DE TEXTO
+        // ============================================
+
+        function wrapText(text, maxWidth, selectedFont, size) {
+            const lines = [];
+
+            for (const paragraph of String(text || "").split("\n")) {
+                if (!paragraph.trim()) {
+                    lines.push("");
+                    continue;
+                }
+
                 let current = "";
 
-                for (const word of words) {
+                for (const word of paragraph.split(/\s+/)) {
                     const candidate = current
                         ? `${current} ${word}`
                         : word;
 
-                    if (font.widthOfTextAtSize(candidate, size) > maxWidth &&
-                        current) {
+                    if (
+                        selectedFont.widthOfTextAtSize(candidate, size)
+                        > maxWidth && current
+                    ) {
                         lines.push(current);
                         current = word;
                     } else {
@@ -188,92 +235,297 @@ export async function exportEditedPDF({
                 }
 
                 if (current) lines.push(current);
-                return lines;
             }
 
+            return lines;
+        }
+
+        function drawText(page, value, x, y, size, selectedFont, color) {
+            page.drawText(value, {x, y, size, font: selectedFont, color});
+        }
+
+        function drawLines(page, lines, x, y, size, selectedFont, color, spacing) {
+            for (const line of lines) {
+                if (line) {
+                    drawText(page, line, x, y, size, selectedFont, color);
+                }
+                y -= spacing;
+            }
+            return y;
+        }
+
+        // ============================================
+        // 8. PÁGINAS DE RESPOSTAS
+        // ============================================
+
+        const answerPages = [];
+        let page = null;
+        let y = 0;
+
+        function drawHeader(target, pageNumber) {
+            drawText(target, "C A D E R N O .", M, TOP, 8, bold, C.green);
+
+            const label = "RESPOSTAS";
+            const labelWidth = bold.widthOfTextAtSize(label, 7);
+
+            drawText(target, label, W - M - labelWidth, TOP, 7, bold, C.muted);
+
+            target.drawLine({
+                start: {x: M, y: TOP - 12},
+                end: {x: W - M, y: TOP - 12},
+                thickness: 0.5,
+                color: C.line
+            });
+
+            // Rodapé
+            target.drawLine({
+                start: {x: M, y: 48},
+                end: {x: W - M, y: 48},
+                thickness: 0.5,
+                color: C.line
+            });
+
+            drawText(target, finalName.slice(0, 65), M, 32, 7, regular, C.muted);
+
+            const pageLabel = String(pageNumber);
+            const pageWidth = serifBold.widthOfTextAtSize(pageLabel, 9);
+
+            drawText(target, pageLabel, W - M - pageWidth, 32, 9, serifBold, C.green);
+        }
+
+        function newAnswerPage() {
+            page = pdfDoc.addPage([W, H]);
+            answerPages.push(page);
+
+            // Preencher com o fundo textura de papel
+            page.drawRectangle({
+                x: 0, y: 0, width: W, height: H, color: C.paper
+            });
+
+            drawHeader(page, answerPages.length);
+            y = TOP - 55;
+        }
+
+        // ============================================
+        // 9. DESENHAR PERGUNTAS E RESPOSTAS
+        // ============================================
+
+        if (prepared.length > 0) {
             newAnswerPage();
 
-            for (const { question, text } of answeredQuestions) {
+            for (const item of prepared) {
+                const {question, answer, missing, index} = item;
+
                 const heading =
-                    `${question.exercise}${question.label ? " — " + question.label : ""}`;
+                    `EXERCÍCIO ${question.exercise || index}` +
+                    (question.label ? `.${question.label}` : "");
 
-                const headingLines = wrapText(heading, pageWidth - margin * 2, 12);
-                const promptLines = wrapText(question.text, pageWidth - margin * 2, 10);
-                const answerLines = wrapText(text || "Sem resposta.", pageWidth - margin * 2, 11);
+                const promptLines = wrapText(question.text, CONTENT - 25, regular, 10.5);
+                const answerLines = wrapText(answer, CONTENT - 40, regular, 11);
 
-                const requiredHeight =
-                    (headingLines.length + promptLines.length + answerLines.length + 3) *
-                    lineHeight + 35;
+                const promptHeight = promptLines.length * 16;
+                const promptBoxHeight = promptHeight + 20;
 
-                if (y - requiredHeight < 55) {
+                const answerBoxHeight = Math.max(60, answerLines.length * 17 + 45);
+
+                const totalHeight = 35 + promptBoxHeight + 15 + answerBoxHeight + 35;
+
+                // Verificar espaço disponível.
+                if (y - totalHeight < BOTTOM + 15) {
                     newAnswerPage();
                 }
 
-                headingLines.forEach(line => {
-                    page.drawText(line, {
-                        x: margin,
-                        y,
-                        size: 12,
-                        font: boldFont
-                    });
-                    y -= lineHeight;
+                // ------------------------------------
+                // IDENTIFICAÇÃO (Minimalista)
+                // ------------------------------------
+
+                const numberText = String(index).padStart(2, "0");
+                const numberWidth = serifBold.widthOfTextAtSize(numberText, 11);
+
+                // Pequeno acento vertical em bronze/terracota
+                page.drawRectangle({
+                    x: M, y: y - 10, width: 2, height: 12, color: C.accent
                 });
 
-                y -= 4;
+                drawText(page, numberText, M + 10, y - 10, 11, serifBold, C.green);
+                drawText(page, heading.toUpperCase(), M + 14 + numberWidth, y - 9, 7.5, bold, C.secondary);
 
-                promptLines.forEach(line => {
-                    page.drawText(line, {
-                        x: margin,
-                        y,
-                        size: 10,
-                        font
-                    });
-                    y -= 14;
+                y -= 32;
+
+                // ------------------------------------
+                // ENUNCIADO (Estilo Quote/Citação)
+                // ------------------------------------
+
+                // Linha lateral subtil em vez de bloco preenchido completo
+                page.drawRectangle({
+                    x: M,
+                    y: y - promptBoxHeight,
+                    width: 1.5,
+                    height: promptBoxHeight,
+                    color: C.line
                 });
 
-                y -= 8;
+                drawLines(
+                    page, promptLines, M + 15, y - 14, 10.5, regular, C.secondary, 16
+                );
 
-                answerLines.forEach(line => {
-                    page.drawText(line, {
-                        x: margin,
-                        y,
-                        size: 11,
-                        font
-                    });
-                    y -= lineHeight;
+                y -= promptBoxHeight + 15;
+
+                // ------------------------------------
+                // CAIXA DE RESPOSTA (Branco puro sob o fundo papel)
+                // ------------------------------------
+
+                const answerTop = y;
+                const answerBottom = y - answerBoxHeight;
+
+                page.drawRectangle({
+                    x: M, y: answerBottom, width: CONTENT, height: answerBoxHeight, color: C.white
                 });
 
-                y -= 22;
-
-                page.drawLine({
-                    start: { x: margin, y },
-                    end: { x: pageWidth - margin, y },
-                    thickness: 0.5,
-                    color: rgb(0.85, 0.85, 0.85)
+                // Barra lateral verde elegante
+                page.drawRectangle({
+                    x: M, y: answerBottom, width: 2.5, height: answerBoxHeight, color: C.green
                 });
 
-                y -= 25;
+                drawText(page, "R E S P O S T A", M + 16, answerTop - 18, 6.5, bold, C.muted);
+
+                drawLines(
+                    page, answerLines, M + 16, answerTop - 38, 11,
+                    missing ? italic : regular,
+                    missing ? C.missing : C.ink,
+                    17
+                );
+
+                y = answerBottom - 35;
             }
         }
 
-        const finalBytes = await pdfDoc.save();
+        // ============================================
+        // 10. CRIAR CAPA NA PRIMEIRA POSIÇÃO
+        // ============================================
 
-        const blob = new Blob([finalBytes], {
-            type: "application/pdf"
+        const cover = pdfDoc.insertPage(0, [W, H]);
+
+        // Fundo (Papel elegante)
+        cover.drawRectangle({
+            x: 0, y: 0, width: W, height: H, color: C.paper
         });
 
+        // Barra superior fina e sofisticada
+        cover.drawRectangle({
+            x: 0, y: H - 4, width: W, height: 4, color: C.green
+        });
+
+        // Identificação
+        drawText(cover, "C A D E R N O .", M, H - 85, 10, bold, C.green);
+
+        const edition = "EDIÇÃO DE ESTUDO";
+        const editionWidth = bold.widthOfTextAtSize(edition, 7);
+
+        drawText(cover, edition, W - M - editionWidth, H - 84, 7, bold, C.muted);
+
+        cover.drawLine({
+            start: {x: M, y: H - 108},
+            end: {x: W - M, y: H - 108},
+            thickness: 0.5,
+            color: C.line
+        });
+
+        // Elemento decorativo subtil (Terracota)
+        cover.drawRectangle({
+            x: M, y: H - 263, width: 34, height: 1.5, color: C.accent
+        });
+
+        drawText(cover, "CADERNO DE ESTUDO", M, H - 290, 8, bold, C.muted);
+
+        // ============================================
+        // NOME DA FICHA EM GRANDE (Com Serif)
+        // ============================================
+
+        let titleSize = 42; // Aumentado para impacto visual
+
+        let titleLines = wrapText(finalName, CONTENT, serifBold, titleSize);
+
+        while (titleLines.length > 4 && titleSize > 24) {
+            titleSize -= 2;
+            titleLines = wrapText(finalName, CONTENT, serifBold, titleSize);
+        }
+
+        let titleY = H - 340;
+
+        for (const line of titleLines) {
+            drawText(cover, line, M, titleY, titleSize, serifBold, C.ink);
+            titleY -= titleSize + 12;
+        }
+
+        const subtitleY = titleY - 20;
+
+        drawText(cover, "FICHA DE TRABALHO E RESPOSTAS", M, subtitleY, 7.5, bold, C.secondary);
+
+        // Linha divisória
+        cover.drawLine({
+            start: {x: M, y: subtitleY - 30},
+            end: {x: W - M, y: subtitleY - 30},
+            thickness: 0.5,
+            color: C.line
+        });
+
+        // ============================================
+        // INFORMAÇÕES DA CAPA
+        // ============================================
+
+        const infoY = Math.min(subtitleY - 85, H - 520);
+
+        drawText(cover, "DOCUMENTO", M, infoY, 7, bold, C.muted);
+
+        const documentLines = wrapText(finalName, CONTENT, regular, 11);
+
+        drawLines(cover, documentLines.slice(0, 2), M, infoY - 20, 11, regular, C.ink, 15);
+
+        const statsY = infoY - 80;
+
+        drawText(cover, "EXERCÍCIOS", M, statsY, 7, bold, C.muted);
+        drawText(cover, String(prepared.length), M, statsY - 26, 20, serifBold, C.green);
+
+        drawText(cover, "DATA DE EXPORTAÇÃO", M + 125, statsY, 7, bold, C.muted);
+        drawText(cover, date, M + 125, statsY - 24, 11, regular, C.ink);
+
+        // ============================================
+        // RODAPÉ DA CAPA (Selo Minimalista)
+        // ============================================
+
+        cover.drawLine({
+            start: {x: M, y: 85},
+            end: {x: W - M, y: 85},
+            thickness: 0.5,
+            color: C.line
+        });
+
+        // ============================================
+        // 11. EXPORTAR PDF
+        // ============================================
+
+        const finalBytes = await pdfDoc.save();
+        const blob = new Blob([finalBytes], {type: "application/pdf"});
         const downloadUrl = URL.createObjectURL(blob);
+
         const link = document.createElement("a");
-
         link.href = downloadUrl;
-        link.download = "Caderno-Digital-respostas.pdf";
+        link.download = `Caderno_${finalName}.pdf`;
+
+        document.body.appendChild(link);
         link.click();
+        link.remove();
 
-        URL.revokeObjectURL(downloadUrl);
+        setTimeout(() => {
+            URL.revokeObjectURL(downloadUrl);
+        }, 1500);
 
-        message.textContent = "PDF exportado com sucesso!";
+        message.textContent = "Caderno exportado com sucesso!";
+
     } catch (error) {
         console.error("Erro na exportação:", error);
-        message.textContent = "Erro ao exportar: " + error.message;
+        message.textContent = "Erro ao exportar o caderno.";
+        alert("Não foi possível exportar: " + error.message);
     }
 }

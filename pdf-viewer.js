@@ -1,6 +1,4 @@
-
-import * as pdfjsLib from
-    "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs";
+import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
@@ -25,10 +23,9 @@ let pinchStartZoom = 1;
 let pinchCurrentZoom = 1;
 
 const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 3;
+const MAX_ZOOM = 3.5;
 
-let pinching = false;
-let activeTouchPointers = new Set();
+let pinchInitialized = false;
 
 export async function openPDF(url) {
     canvas = document.getElementById("pdf-canvas");
@@ -54,7 +51,6 @@ export async function openPDF(url) {
 
         loadingMessage.hidden = true;
         pageLayer.hidden = false;
-
         pageLayer.style.transform = "";
 
         container.scrollTop = 0;
@@ -63,53 +59,30 @@ export async function openPDF(url) {
         await renderPage();
 
     } catch (error) {
-        loadingMessage.textContent =
-            "Não foi possível abrir este PDF: " + error.message;
-
+        loadingMessage.textContent = "Não foi possível abrir este PDF: " + error.message;
         console.error(error);
     }
 }
 
 /* =====================================
-   ZOOM COM DOIS DEDOS
+   ZOOM COM DOIS DEDOS (PINCH-TO-ZOOM)
 ===================================== */
-
-let pinchInitialized = false;
 
 function initializePinchZoom() {
     if (pinchInitialized) return;
 
-    // Permite deslocar com um dedo, mas controla
-    // manualmente o gesto de ampliar/reduzir.
+    // Permite deslocar com um dedo, mas controla o gesto de ampliar/reduzir manualmente.
     container.style.touchAction = "pan-x pan-y";
 
-    container.addEventListener(
-        "touchstart",
-        handleTouchStart,
-        { passive: false }
-    );
-
-    container.addEventListener(
-        "touchmove",
-        handleTouchMove,
-        { passive: false }
-    );
-
-    container.addEventListener(
-        "touchend",
-        handleTouchEnd,
-        { passive: false }
-    );
-
-    container.addEventListener(
-        "touchcancel",
-        handleTouchEnd,
-        { passive: false }
-    );
+    container.addEventListener("touchstart", handleTouchStart, { passive: false });
+    container.addEventListener("touchmove", handleTouchMove, { passive: false });
+    container.addEventListener("touchend", handleTouchEnd, { passive: false });
+    container.addEventListener("touchcancel", handleTouchEnd, { passive: false });
 
     pinchInitialized = true;
 }
 
+// Corrigido: operador - restaurado
 function getDistance(touches) {
     return Math.hypot(
         touches[0].clientX - touches[1].clientX,
@@ -117,49 +90,58 @@ function getDistance(touches) {
     );
 }
 
+// Calcular o centro do pinch para que o zoom vá para o meio dos dedos
+function getPinchCenter(touches) {
+    return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2
+    };
+}
+
 function handleTouchStart(event) {
     if (event.touches.length !== 2) return;
 
-    event.preventDefault();
+    event.preventDefault(); // Evita zoom do sistema
 
     pinchActive = true;
-
     pinchStartDistance = getDistance(event.touches);
     pinchStartZoom = zoom;
     pinchCurrentZoom = zoom;
 
+    // Definir origem da escala para o centro dos dedos (melhora muito a UX)
+    const center = getPinchCenter(event.touches);
+    const rect = pageLayer.getBoundingClientRect();
+    const originX = center.x - rect.left;
+    const originY = center.y - rect.top;
+    
     pageLayer.style.transition = "none";
+    pageLayer.style.transformOrigin = `${originX}px ${originY}px`;
 
-    // Avisa o editor para cancelar qualquer desenho.
-    window.dispatchEvent(
-        new Event("pdf-pinch-start")
-    );
+    // Avisa o editor para cancelar qualquer desenho ativo.
+    window.dispatchEvent(new Event("pdf-pinch-start"));
 }
 
 function handleTouchMove(event) {
     if (!pinchActive || event.touches.length !== 2) return;
 
-    event.preventDefault();
+    event.preventDefault(); // Evita scroll natural enquanto faz zoom
 
     const distance = getDistance(event.touches);
-
     if (!pinchStartDistance) return;
 
     const ratio = distance / pinchStartDistance;
 
+    // Corrigido: operador * restaurado
     pinchCurrentZoom = Math.max(
         MIN_ZOOM,
         Math.min(MAX_ZOOM, pinchStartZoom * ratio)
     );
 
-    // Pré-visualização imediata do zoom.
+    // Pré-visualização imediata através de CSS Scale
     const scale = pinchCurrentZoom / pinchStartZoom;
-
     pageLayer.style.transform = `scale(${scale})`;
-    pageLayer.style.transformOrigin = "center center";
 
-    zoomInfo.textContent =
-        `${Math.round(pinchCurrentZoom * 100)}%`;
+    zoomInfo.textContent = `${Math.round(pinchCurrentZoom * 100)}%`;
 }
 
 async function handleTouchEnd(event) {
@@ -171,15 +153,15 @@ async function handleTouchEnd(event) {
 
         const newZoom = pinchCurrentZoom;
 
-        // Remove a transformação temporária.
+        // Remove a transformação visual do CSS
         pageLayer.style.transform = "";
+        pageLayer.style.transformOrigin = "center center";
 
         zoom = newZoom;
 
-        window.dispatchEvent(
-            new Event("pdf-pinch-end")
-        );
+        window.dispatchEvent(new Event("pdf-pinch-end"));
 
+        // Renderiza a nova qualidade do PDF baseada no novo zoom
         await renderPage();
     }
 }
@@ -204,29 +186,24 @@ async function renderPage() {
 
             const page = await pdf.getPage(currentPage);
 
-            const baseViewport = page.getViewport({
-                scale: 1
-            });
+            const baseViewport = page.getViewport({ scale: 1 });
 
+            // Corrigido: operador - e / restaurados
             const fitScale = Math.min(
                 1.4,
-                (container.clientWidth - 24) /
-                    baseViewport.width
+                (container.clientWidth - 24) / baseViewport.width
             );
 
+            // Corrigido: operador * restaurado
             const viewport = page.getViewport({
                 scale: fitScale * zoom
             });
 
             const pixelRatio = window.devicePixelRatio || 1;
 
-            canvas.width = Math.floor(
-                viewport.width * pixelRatio
-            );
-
-            canvas.height = Math.floor(
-                viewport.height * pixelRatio
-            );
+            // Corrigido: operador * restaurado
+            canvas.width = Math.floor(viewport.width * pixelRatio);
+            canvas.height = Math.floor(viewport.height * pixelRatio);
 
             canvas.style.width = `${viewport.width}px`;
             canvas.style.height = `${viewport.height}px`;
@@ -234,30 +211,22 @@ async function renderPage() {
             await page.render({
                 canvasContext: context,
                 viewport,
-                transform: pixelRatio !== 1
-                    ? [pixelRatio, 0, 0, pixelRatio, 0, 0]
-                    : null
+                transform: pixelRatio !== 1 ? [pixelRatio, 0, 0, pixelRatio, 0, 0] : null
             }).promise;
 
             window.dispatchEvent(
                 new CustomEvent("pdf-page-rendered", {
-                    detail: {
-                        page: currentPage
-                    }
+                    detail: { page: currentPage }
                 })
             );
 
-            pageInfo.textContent =
-                `Página ${currentPage} de ${pdf.numPages}`;
+            pageInfo.textContent = `Página ${currentPage} de ${pdf.numPages}`;
+            
+            // Corrigido: operador * restaurado
+            zoomInfo.textContent = `${Math.round(zoom * 100)}%`;
 
-            zoomInfo.textContent =
-                `${Math.round(zoom * 100)}%`;
-
-            document.getElementById("previous-page").disabled =
-                currentPage <= 1;
-
-            document.getElementById("next-page").disabled =
-                currentPage >= pdf.numPages;
+            document.getElementById("previous-page").disabled = (currentPage <= 1);
+            document.getElementById("next-page").disabled = (currentPage >= pdf.numPages);
 
         } while (pendingRender);
 
@@ -272,14 +241,12 @@ async function renderPage() {
 
 export async function nextPage() {
     if (!pdf || currentPage >= pdf.numPages) return;
-
     currentPage++;
     await renderPage();
 }
 
 export async function previousPage() {
     if (!pdf || currentPage <= 1) return;
-
     currentPage--;
     await renderPage();
 }
@@ -290,17 +257,14 @@ export async function previousPage() {
 
 export async function zoomIn() {
     if (!pdf) return;
-
     zoom = Math.min(zoom + 0.15, MAX_ZOOM);
-
     await renderPage();
 }
 
 export async function zoomOut() {
     if (!pdf) return;
-
+    // Corrigido: operador - restaurado
     zoom = Math.max(zoom - 0.15, MIN_ZOOM);
-
     await renderPage();
 }
 

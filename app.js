@@ -315,6 +315,7 @@ async function uploadPDF(file) {
 
 // Abrir documento e analisar com IA
 async function openDocument(doc) {
+    sessionStorage.setItem("activeDocumentId", doc.id);
     uploadMessage.textContent = "";
 
     try {
@@ -510,6 +511,7 @@ async function openDocument(doc) {
 }
 
 // Exportar PDF preenchido
+
 async function exportPDF() {
     if (!activeDocument || !activePdfUrl) {
         alert("Abre primeiro um documento.");
@@ -523,7 +525,8 @@ async function exportPDF() {
         await exportEditedPDF({
             url: activePdfUrl,
             documentId: activeDocument.id,
-            questions: activeQuestions
+            questions: activeQuestions,
+            documentName: activeDocument.title
         });
 
     } catch (error) {
@@ -537,9 +540,11 @@ async function exportPDF() {
     }
 }
 
+
 // Voltar à biblioteca
 function showLibrary() {
     closePDF();
+    sessionStorage.removeItem("activeDocumentId");
 
     activeDocument = null;
     activePdfUrl = null;
@@ -556,14 +561,35 @@ function showLibrary() {
 
 // Atualizar interface conforme autenticação
 function updateInterface(session) {
-    authSection.hidden = !!session;
-    librarySection.hidden = !session;
-    readerSection.hidden = true;
-    header.hidden = !session;
+    const authenticated = !!session;
 
-    if (session) {
-        loadDocuments();
+    authSection.hidden = authenticated;
+    header.hidden = !authenticated;
+
+    // Sem sessão: mostrar autenticação
+    if (!authenticated) {
+        librarySection.hidden = true;
+        readerSection.hidden = true;
+
+        sessionStorage.removeItem("activeDocumentId");
+
+        activeDocument = null;
+        activePdfUrl = null;
+        activeQuestions = [];
+
+        return;
     }
+
+    // Se já existe uma ficha aberta, manter o leitor visível
+    if (activeDocument) {
+        librarySection.hidden = true;
+        readerSection.hidden = false;
+    } else {
+        librarySection.hidden = false;
+        readerSection.hidden = true;
+    }
+
+    loadDocuments();
 }
 
 // Eliminar conta de utilizador com janela de confirmação
@@ -697,9 +723,64 @@ supabase.auth.onAuthStateChange((_event, session) => {
     updateInterface(session);
 });
 
-// Verificar sessão existente
+// Restaurar documento anteriormente aberto
+let restoringDocument = false;
+
+async function restoreActiveDocument() {
+    if (restoringDocument) return;
+
+    const savedId = sessionStorage.getItem("activeDocumentId");
+
+    if (!savedId) return;
+
+    if (activeDocument?.id === savedId) return;
+
+    restoringDocument = true;
+
+    try {
+        // Confirmar sessão
+        const { data: sessionData, error: sessionError } =
+            await supabase.auth.getSession();
+
+        if (sessionError) throw sessionError;
+
+        if (!sessionData.session) return;
+
+        // Procurar documento guardado
+        const { data, error } = await supabase
+            .from("documents")
+            .select("*")
+            .eq("id", savedId)
+            .single();
+
+        if (error) throw error;
+
+        if (data) {
+            await openDocument(data);
+        }
+
+    } catch (error) {
+        console.error("Erro ao restaurar documento:", error);
+    } finally {
+        restoringDocument = false;
+    }
+}
+
+// Verificar sessão existente no arranque
 const {
     data: { session }
 } = await supabase.auth.getSession();
 
 updateInterface(session);
+
+// Restaurar ficha imediatamente após carregar a página
+if (session) {
+    await restoreActiveDocument();
+}
+
+// Restaurar também quando regressa ao separador
+document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible") {
+        await restoreActiveDocument();
+    }
+});
