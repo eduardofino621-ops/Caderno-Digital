@@ -137,8 +137,16 @@ export async function exportEditedPDF({
                             y: height - (b.y * height)
                         },
                         thickness: item.width || 1.5,
-                        color: C.green,
-                        opacity: 0.9
+                        color: (() => {
+                            const hex = item.color || "#202020";
+
+                            return rgb(
+                                parseInt(hex.slice(1, 3), 16) / 255,
+                                parseInt(hex.slice(3, 5), 16) / 255,
+                                parseInt(hex.slice(5, 7), 16) / 255
+                            );
+                        })(),
+                        opacity: item.opacity ?? 1
                     });
                 }
             }

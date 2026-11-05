@@ -879,3 +879,121 @@ input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):focus + .inp
     transition-duration: 0.01ms !important;
   }
 }
+
+/* BARRA DE FERRAMENTAS DE ESCRITA */
+
+/* ==========================================================================
+   BARRA DE FERRAMENTAS DE ESCRITA
+   ========================================================================== */
+
+.writing-tools {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    width: 100%;
+    padding: 12px;
+    margin-top: 8px;
+    background: var(--surface-soft);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+}
+
+.writing-tools[hidden] {
+    display: none !important;
+}
+
+.writing-tool-types,
+.writing-colors {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+/* Forçar estilo limpo nos botões de ferramentas para não herdarem o fundo verde principal */
+.editor-toolbar .writing-tool,
+.writing-tools button.writing-tool {
+    min-height: 34px;
+    padding: 6px 12px;
+    font-size: 12px;
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--surface-border);
+    box-shadow: none;
+}
+
+.editor-toolbar .writing-tool:hover:not(:disabled),
+.writing-tools button.writing-tool:hover:not(:disabled) {
+    background: var(--primary-light);
+    color: var(--primary);
+    border-color: var(--primary-soft);
+    transform: none;
+}
+
+.editor-toolbar .writing-tool.active,
+.writing-tools button.writing-tool.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+/* Bolas de cores individuais (corrigido para ignorar o estilo base de botão) */
+.editor-toolbar .color-option,
+.writing-tools button.color-option {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    background-color: var(--swatch) !important;
+    border: 3px solid var(--surface);
+    box-shadow: 0 0 0 1px var(--surface-border);
+    transform: none;
+}
+
+.editor-toolbar .color-option:hover:not(:disabled),
+.writing-tools button.color-option:hover:not(:disabled) {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 1px var(--primary);
+}
+
+.editor-toolbar .color-option.active,
+.writing-tools button.color-option.active {
+    box-shadow: 0 0 0 2px var(--primary);
+    transform: scale(1.15);
+}
+
+.stroke-size-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.stroke-size-control select {
+    padding: 7px 9px;
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-main);
+    font: inherit;
+}
+
+@media (max-width: 600px) {
+  .writing-tools {
+    gap: 10px;
+  }
+
+  .writing-tool-types {
+    width: 100%;
+  }
+
+  .writing-tool-types button {
+    flex: 1;
+  }
+}

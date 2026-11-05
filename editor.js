@@ -1,9 +1,12 @@
-
 import { supabase } from "./database.js";
 
 let documentId = null;
-let mode = "select";
+let mode = "pen"; // Começa em modo de escrita por defeito
 let currentPage = 1;
+
+let activeDrawTool = "pen";
+let activeColor = "#202020";
+let activeWidth = 2.5;
 
 let strokes = [];
 let selected = [];
@@ -21,6 +24,7 @@ let activeTouchPointers = new Set();
 const canvas = document.getElementById("editor-canvas");
 const ctx = canvas.getContext("2d");
 const pdfCanvas = document.getElementById("pdf-canvas");
+const writingTools = document.getElementById("writing-tools");
 
 // =====================================
 // INICIALIZAÇÃO
@@ -63,6 +67,33 @@ export function initEditor(id) {
             activeTouchPointers.clear();
         });
 
+        document.querySelectorAll("[data-draw-tool]").forEach(button => {
+            button.addEventListener("click", () => {
+                activeDrawTool = button.dataset.drawTool;
+
+                document.querySelectorAll("[data-draw-tool]")
+                    .forEach(item => item.classList.remove("active"));
+
+                button.classList.add("active");
+            });
+        });
+
+        document.querySelectorAll("[data-color]").forEach(button => {
+            button.addEventListener("click", () => {
+                activeColor = button.dataset.color;
+
+                document.querySelectorAll("[data-color]")
+                    .forEach(item => item.classList.remove("active"));
+
+                button.classList.add("active");
+            });
+        });
+
+        document.getElementById("stroke-width")
+            ?.addEventListener("change", event => {
+                activeWidth = Number(event.target.value);
+            });
+
         editorInitialized = true;
     }
 
@@ -75,7 +106,7 @@ export function initEditor(id) {
     pinching = false;
     activeTouchPointers.clear();
 
-    setMode("select");
+    setMode("pen");
 }
 
 // =====================================
@@ -84,7 +115,6 @@ export function initEditor(id) {
 
 export async function setAutomaticQuestions(foundQuestions) {
     questions = foundQuestions || [];
-
     await renderQuestions();
 }
 
@@ -98,9 +128,7 @@ async function renderQuestions() {
     if (!panel) {
         panel = document.createElement("section");
         panel.id = "answers-panel";
-
-        document.getElementById("reader-section")
-            .appendChild(panel);
+        document.getElementById("reader-section").appendChild(panel);
     }
 
     panel.replaceChildren();
@@ -111,10 +139,7 @@ async function renderQuestions() {
 
     if (!questions.length) {
         const message = document.createElement("p");
-
-        message.textContent =
-            "Não foram identificadas perguntas neste documento.";
-
+        message.textContent = "Não foram identificadas perguntas neste documento.";
         panel.appendChild(message);
         return;
     }
@@ -127,12 +152,8 @@ async function renderQuestions() {
         article.dataset.questionId = question.id;
 
         const title = document.createElement("h3");
-
-        const exercise =
-            question.exercise || `Pergunta ${index + 1}`;
-
-        title.textContent =
-            `${exercise}${question.label ? " — " + question.label : ""}`;
+        const exercise = question.exercise || `Pergunta ${index + 1}`;
+        title.textContent = `${exercise}${question.label ? " — " + question.label : ""}`;
 
         const prompt = document.createElement("p");
         prompt.className = "question-prompt";
@@ -140,23 +161,17 @@ async function renderQuestions() {
 
         article.append(title, prompt);
 
-        // Enunciado: não cria caixa de resposta
         if (question.type === "statement") {
             article.classList.add("question-statement");
-
-        // Escolha múltipla
         } else if (question.type === "multiple_choice") {
             await renderMultipleChoice(article, question);
-
-        // Desenvolvimento e alíneas
         } else {
             await renderDevelopment(article, question);
         }
 
         const pageInfo = document.createElement("small");
         pageInfo.className = "question-page";
-        pageInfo.textContent =
-            `Página ${question.pageNumber || 1}`;
+        pageInfo.textContent = `Página ${question.pageNumber || 1}`;
 
         article.appendChild(pageInfo);
         panel.appendChild(article);
@@ -197,15 +212,10 @@ async function renderMultipleChoice(article, question) {
         checkbox.checked = savedOptions.includes(optionId);
 
         const optionText = document.createElement("span");
-        optionText.textContent =
-            `${option.label}) ${option.text}`;
+        optionText.textContent = `${option.label}) ${option.text}`;
 
         checkbox.addEventListener("change", async () => {
-            await toggleOption(
-                page,
-                optionId,
-                checkbox.checked
-            );
+            await toggleOption(page, optionId, checkbox.checked);
         });
 
         label.append(checkbox, optionText);
@@ -265,7 +275,6 @@ async function renderDevelopment(article, question) {
 
     textarea.className = "development-answer";
     textarea.dataset.questionId = question.id;
-
     textarea.placeholder = "Escreve aqui a tua resposta...";
     textarea.rows = 6;
 
@@ -280,10 +289,7 @@ async function renderDevelopment(article, question) {
         console.error("Erro ao carregar resposta:", error);
     }
 
-    const saved = data?.drawing_data?.find(
-        item => item.type === "text-answer"
-    );
-
+    const saved = data?.drawing_data?.find(item => item.type === "text-answer");
     textarea.value = saved?.text || "";
 
     textarea.addEventListener("input", () => {
@@ -309,8 +315,7 @@ async function saveTextAnswer(questionId, text) {
             return;
         }
 
-        const drawingData = (existing?.drawing_data || [])
-            .filter(item => item.type !== "text-answer");
+        const drawingData = (existing?.drawing_data || []).filter(item => item.type !== "text-answer");
 
         drawingData.push({
             type: "text-answer",
@@ -344,23 +349,32 @@ async function saveTextAnswer(questionId, text) {
 function setMode(newMode) {
     mode = newMode;
 
-    document.querySelectorAll(".editor-toolbar button")
-        .forEach(button => button.classList.remove("active"));
+    const btnSelect = document.getElementById("mode-select");
+    const btnPen = document.getElementById("mode-pen");
+    const btnErase = document.getElementById("mode-erase");
 
-    document.getElementById(`mode-${newMode}`)
-        ?.classList.add("active");
+    if (btnSelect) btnSelect.classList.toggle("active", mode === "select");
+    if (btnPen) btnPen.classList.toggle("active", mode === "pen");
+    if (btnErase) btnErase.classList.toggle("active", mode === "erase");
+
+    if (writingTools) {
+        writingTools.hidden = mode !== "pen";
+    }
 
     const help = {
-        select: "Seleciona as respostas no caderno ou navega pelo documento.",
-        pen: "Desenha diretamente sobre o documento.",
+        select: "Modo de navegação: podes fazer scroll e mexer no documento livremente.",
+        pen: "Escolhe uma ferramenta, cor e grossura para escrever.",
         erase: "Apaga os traços desenhados."
     };
 
-    document.getElementById("editor-help").textContent =
-        help[newMode];
+    const editorHelp = document.getElementById("editor-help");
+    if (editorHelp) {
+        editorHelp.textContent = help[newMode] || "";
+    }
 
     canvas.style.cursor =
-        newMode === "pen" ? "crosshair" : "default";
+        newMode === "pen" ? "crosshair" :
+            newMode === "erase" ? "cell" : "default";
 }
 
 // =====================================
@@ -369,7 +383,6 @@ function setMode(newMode) {
 
 function getPoint(event) {
     const rect = canvas.getBoundingClientRect();
-
     return {
         x: (event.clientX - rect.left) / rect.width,
         y: (event.clientY - rect.top) / rect.height
@@ -380,7 +393,6 @@ async function prepareCanvas(page) {
     currentPage = page;
 
     const rect = pdfCanvas.getBoundingClientRect();
-
     if (!rect.width || !rect.height) return;
 
     const pixelRatio = window.devicePixelRatio || 1;
@@ -405,9 +417,7 @@ async function prepareCanvas(page) {
         return;
     }
 
-    strokes = (data?.drawing_data || [])
-        .filter(item => item.type === "stroke");
-
+    strokes = (data?.drawing_data || []).filter(item => item.type === "stroke");
     draw();
 }
 
@@ -423,11 +433,16 @@ function draw() {
         if (stroke.points.length < 2) return;
 
         ctx.beginPath();
-
         ctx.strokeStyle = stroke.color;
         ctx.lineWidth = stroke.width;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
+
+        if (stroke.tool === "underline") {
+            ctx.lineCap = "butt";
+            ctx.lineJoin = "miter";
+        } else {
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+        }
 
         stroke.points.forEach((point, index) => {
             const x = point.x * width;
@@ -440,7 +455,9 @@ function draw() {
             }
         });
 
+        ctx.globalAlpha = stroke.opacity ?? 1;
         ctx.stroke();
+        ctx.globalAlpha = 1;
     });
 }
 
@@ -451,12 +468,10 @@ function draw() {
 function cancelCurrentStroke() {
     if (currentStroke) {
         const index = strokes.indexOf(currentStroke);
-
         if (index !== -1) {
             strokes.splice(index, 1);
         }
     }
-
     drawing = false;
     currentStroke = null;
 }
@@ -466,7 +481,6 @@ function pointerDown(event) {
         activeTouchPointers.add(event.pointerId);
     }
 
-    // Não desenhar durante o zoom com dois dedos
     if (pinching || activeTouchPointers.size >= 2) {
         cancelCurrentStroke();
         draw();
@@ -475,10 +489,10 @@ function pointerDown(event) {
 
     if (!documentId || !canvas.width) return;
 
+    // Se estiver em modo de navegação, não desenha nem apaga nada
     if (mode === "select") return;
 
     event.preventDefault();
-
     canvas.setPointerCapture(event.pointerId);
 
     const point = getPoint(event);
@@ -486,10 +500,31 @@ function pointerDown(event) {
     if (mode === "pen") {
         drawing = true;
 
+        const settings = {
+            pen: {
+                width: activeWidth,
+                opacity: 1
+            },
+            highlighter: {
+                // Marcador largo e translúcido
+                width: Math.max(activeWidth * 4, 16),
+                opacity: 0.35
+            },
+            underline: {
+                // Sublinhador fino e preciso
+                width: Math.max(activeWidth * 0.8, 2),
+                opacity: 1
+            }
+        };
+
+        const selectedSettings = settings[activeDrawTool] || settings.pen;
+
         currentStroke = {
             type: "stroke",
-            color: "#246bce",
-            width: 2.5,
+            tool: activeDrawTool,
+            color: activeColor,
+            width: selectedSettings.width,
+            opacity: selectedSettings.opacity,
             page: currentPage,
             points: [point]
         };
@@ -509,14 +544,12 @@ function pointerMove(event) {
         return;
     }
 
+    if (mode === "select") return;
     if (!drawing || !currentStroke) return;
 
     event.preventDefault();
-
     const point = getPoint(event);
-
     currentStroke.points.push(point);
-
     draw();
 }
 
@@ -526,7 +559,7 @@ function pointerUp(event) {
     }
 
     if (pinching) return;
-
+    if (mode === "select") return;
     if (!drawing) return;
 
     drawing = false;
@@ -540,7 +573,6 @@ function pointerCancel(event) {
     if (event.pointerType === "touch") {
         activeTouchPointers.delete(event.pointerId);
     }
-
     cancelCurrentStroke();
     draw();
 }
@@ -582,9 +614,7 @@ function eraseAt(point) {
 // =====================================
 
 async function savePage() {
-    const drawingData = strokes.filter(
-        stroke => stroke.page === currentPage
-    );
+    const drawingData = strokes.filter(stroke => stroke.page === currentPage);
 
     const { data: existing, error: readError } = await supabase
         .from("answers")
@@ -621,7 +651,6 @@ async function savePage() {
 
 function showSaveStatus(error) {
     const help = document.getElementById("editor-help");
-
     if (!help) return;
 
     if (error) {
