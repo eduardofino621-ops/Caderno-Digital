@@ -1,4 +1,3 @@
-
 import { supabase } from "./database.js";
 import {
     initEditor,
@@ -85,7 +84,7 @@ async function register() {
 
     authMessage.textContent = error
         ? error.message
-        : "Conta criada! Confirma o email, se solicitado.";
+        : "Conta criada! Confirms o email, se solicitado.";
 }
 
 async function logout() {
@@ -191,6 +190,7 @@ async function deleteDocument(doc) {
         uploadMessage.textContent = error.message;
     }
 }
+
 // Carregar biblioteca
 async function loadDocuments() {
     uploadMessage.textContent = "A carregar documentos...";
@@ -369,9 +369,7 @@ async function openDocument(doc) {
         // Enviar o conteúdo para a Edge Function
         uploadMessage.textContent = "A analisar o documento com inteligência artificial...";
 
-// Preparar uma versão compacta dos dados para a IA.
-// Mantém texto e coordenadas, mas remove metadados desnecessários.
-
+        // Preparar uma versão compacta dos dados para a IA.
         const pagesForAI = pdfAnalysis.pages.map(page => ({
             pageNumber: page.pageNumber,
             width: page.width,
@@ -401,7 +399,7 @@ async function openDocument(doc) {
             pages: pagesForAI
         };
 
-// Medir o tamanho real do pedido.
+        // Medir o tamanho real do pedido
         const payloadSize = new TextEncoder().encode(
             JSON.stringify(requestBody)
         ).length;
@@ -411,7 +409,7 @@ async function openDocument(doc) {
             megabytes: (payloadSize / 1024 / 1024).toFixed(2)
         });
 
-// Enviar para a Edge Function.
+        // Enviar para a Edge Function
         const {data: result, error: analysisError} =
             await supabase.functions.invoke("analyze-document", {
                 body: requestBody
@@ -425,7 +423,7 @@ async function openDocument(doc) {
                     const response = await analysisError.context.json();
                     details = response.error || response.message || details;
                 } catch {
-                    // Mantém a mensagem original.
+                    // Mantém a mensagem original
                 }
             }
 
@@ -568,6 +566,85 @@ function updateInterface(session) {
     }
 }
 
+// Eliminar conta de utilizador com janela de confirmação
+async function deleteAccount() {
+    const confirmed = confirm(
+        "Tens a certeza absoluta de que queres eliminar a tua conta?\n\n" +
+        "Todos os teus documentos, ficheiros PDF e respostas associadas serão apagados permanentemente.\n\n" +
+        "Esta ação é irreversível!"
+    );
+
+    if (!confirmed) return;
+
+    try {
+        const { data, error } = await supabase.auth.getSession();
+
+        console.log("DIAGNÓSTICO DA SESSÃO:", {
+            existeSessao: !!data.session,
+            existeToken: !!data.session?.access_token,
+            erro: error?.message,
+            armazenamentoDisponivel: !!window.localStorage
+        });
+
+        if (error) throw error;
+
+        const session = data.session;
+
+        if (!session || !session.access_token) {
+            throw new Error(
+                "Não existe uma sessão ativa nesta aplicação. Termina sessão e volta a entrar."
+            );
+        }
+
+        // Validar que o token ainda funciona
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !userData.user) {
+            throw new Error(
+                "A autenticação expirou. Termina sessão e volta a entrar."
+            );
+        }
+
+        // Chamar Edge Function
+        const response = await fetch(
+            "https://lzmpartyirwmmfazezyx.supabase.co/functions/v1/delete-account",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${session.access_token}`,
+                    "apikey": "sb_publishable_eiucFgPNRD5ZTv6vrVNyNQ_mcl4DhIn"
+                },
+                body: JSON.stringify({
+                    access_token: session.access_token
+                })
+            }
+        );
+
+        const responseText = await response.text();
+        let result;
+
+        try {
+            result = JSON.parse(responseText);
+        } catch {
+            throw new Error("Resposta inválida: " + responseText);
+        }
+
+        if (!response.ok || !result.success) {
+            throw new Error(result.error || "Erro ao eliminar conta.");
+        }
+
+        alert("Conta eliminada com sucesso!");
+
+        await supabase.auth.signOut();
+        window.location.reload();
+
+    } catch (error) {
+        console.error("Erro ao eliminar conta:", error);
+        alert("Erro ao eliminar conta: " + error.message);
+    }
+}
+
 // Eventos de autenticação
 document.getElementById("login-btn")
     .addEventListener("click", login);
@@ -611,7 +688,9 @@ document.getElementById("zoom-out")
     .addEventListener("click", zoomOut);
 
 // Exportação
-exportButton.addEventListener("click", exportPDF);
+if (exportButton) {
+    exportButton.addEventListener("click", exportPDF);
+}
 
 // Estado da autenticação
 supabase.auth.onAuthStateChange((_event, session) => {
@@ -624,77 +703,3 @@ const {
 } = await supabase.auth.getSession();
 
 updateInterface(session);
-
-
-async function deleteAccount() {
-    try {
-        const {data, error} = await supabase.auth.getSession();
-
-        console.log("DIAGNÓSTICO DA SESSÃO:", {
-            existeSessao: !!data.session,
-            existeToken: !!data.session?.access_token,
-            erro: error?.message,
-            armazenamentoDisponivel: !!window.localStorage
-        });
-
-        if (error) throw error;
-
-        const session = data.session;
-
-        if (!session || !session.access_token) {
-            throw new Error(
-                "Não existe uma sessão ativa nesta aplicação. Termina sessão e volta a entrar."
-            );
-        }
-
-        // 2. Validar que o token ainda funciona
-        const {data: userData, error: userError} =
-            await supabase.auth.getUser();
-
-        if (userError || !userData.user) {
-            throw new Error(
-                "A autenticação expirou. Termina sessão e volta a entrar."
-            );
-        }
-
-        // 3. Chamar Edge Function
-        const response = await fetch(
-            "https://lzmpartyirwmmfazezyx.supabase.co/functions/v1/delete-account",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${session.access_token}`,
-                    "apikey": "sb_publishable_eiucFgPNRD5ZTv6vrVNyNQ_mcl4DhIn"
-                },
-                body: JSON.stringify({
-                    access_token: session.access_token
-                })
-            }
-        );
-
-        const responseText = await response.text();
-
-        let result;
-
-        try {
-            result = JSON.parse(responseText);
-        } catch {
-            throw new Error("Resposta inválida: " + responseText);
-        }
-
-        if (!response.ok || !result.success) {
-            throw new Error(result.error || "Erro ao eliminar conta.");
-        }
-
-        alert("Conta eliminada com sucesso!");
-
-        await supabase.auth.signOut();
-        window.location.reload();
-
-    } catch (error) {
-        console.error("Erro ao eliminar conta:", error);
-        alert("Erro ao eliminar conta: " + error.message);
-    }
-}
-
