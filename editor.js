@@ -1,7 +1,7 @@
 import { supabase } from "./database.js";
 
 let documentId = null;
-let mode = "pen"; // Começa em modo de escrita por defeito
+let mode = "select"; // Começa em modo de escrita por defeito
 let currentPage = 1;
 
 let activeDrawTool = "pen";
@@ -106,7 +106,7 @@ export function initEditor(id) {
     pinching = false;
     activeTouchPointers.clear();
 
-    setMode("pen");
+    setMode("select");
 }
 
 // =====================================
